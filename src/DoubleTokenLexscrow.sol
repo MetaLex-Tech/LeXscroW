@@ -22,10 +22,10 @@ interface ILexscrowConditionManager {
 
 /// @notice interface for ERC-20 standard token contract, including EIP2612 permit function
 interface IERC20Permit {
-    function allowance(
-        address owner,
-        address spender
-    ) external view returns (uint256);
+    function allowance(address owner, address spender)
+        external
+        view
+        returns (uint256);
 
     function balanceOf(address account) external view returns (uint256);
 
@@ -62,7 +62,11 @@ abstract contract SafeTransferLib {
 
     /// @dev Sends `amount` of ERC20 `token` from the current contract to `to`.
     /// Reverts upon failure.
-    function safeTransfer(address token, address to, uint256 amount) internal {
+    function safeTransfer(
+        address token,
+        address to,
+        uint256 amount
+    ) internal {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, to) // Store the `to` argument.
@@ -450,10 +454,10 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
      ** records amount deposited by msg.sender for refundability at expiry  */
     /// @param _token1Deposit: if true, depositing 'token1'; if false, depositing 'token2'
     /// @param _amount: amount of tokens deposited (tokenContract2 if seller, otherwise tokenContract1). If 'openOffer', '_amount' must == 'totalAmount1' + 'fee1' or 'totalAmount2' + 'fee2' as applicable
-    function depositTokens(
-        bool _token1Deposit,
-        uint256 _amount
-    ) external nonReentrant {
+    function depositTokens(bool _token1Deposit, uint256 _amount)
+        external
+        nonReentrant
+    {
         if (expirationTime <= block.timestamp)
             revert DoubleTokenLexscrow_IsExpired();
         if (_amount == 0) revert DoubleTokenLexscrow_ZeroAmount();
@@ -558,15 +562,12 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         uint256 _totalWithFee2 = _totalAmount2 + _fee2;
         if (
             token1.balanceOf(address(this)) < _totalWithFee1 ||
-            token2.balanceOf(address(this)) < _totalWithFee2
+            token2.balanceOf(address(this)) < _totalWithFee2 ||
+            (address(conditionManager) != address(0) &&
+                !conditionManager.checkConditions())
         ) revert DoubleTokenLexscrow_NotReadyToExecute();
 
-        // only perform these checks if execution is contingent upon specified external condition(s)
-        bool _conditionsSatisfied = true;
-        if (address(conditionManager) != address(0))
-            _conditionsSatisfied = conditionManager.checkConditions();
-
-        if (_conditionsSatisfied && !checkIfExpired()) {
+        if (!checkIfExpired()) {
             address _receiver = receiver;
 
             // safeTransfer 'totalAmount1' to 'seller', 'totalAmount2' to 'buyer', and each fee to '_receiver'; note the deposit functions perform checks against depositing more than the totalAmounts plus fees,
@@ -592,10 +593,10 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @dev external call will revert if price quote is too stale or if token is not supported; event containing '_paymentId' and '_usdValue' emitted by Receipt.sol
     /// @param _token1: whether caller is seeking a receipt for 'token1'; if true, yes, if false, seeking receipt for 'token2'
     /// @param _tokenAmount: amount of tokens for which caller is seeking the total USD value receipt
-    function getReceipt(
-        bool _token1,
-        uint256 _tokenAmount
-    ) external returns (uint256 _paymentId, uint256 _usdValue) {
+    function getReceipt(bool _token1, uint256 _tokenAmount)
+        external
+        returns (uint256 _paymentId, uint256 _usdValue)
+    {
         if (_token1)
             return
                 receipt.printReceipt(
