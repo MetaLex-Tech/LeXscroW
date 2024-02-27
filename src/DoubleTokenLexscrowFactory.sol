@@ -113,7 +113,7 @@ contract DoubleTokenLexscrowFactory {
         address _tokenContract1,
         address _tokenContract2,
         address _receipt,
-        LexscrowConditionManager.Condition[] memory _conditions
+        LexscrowConditionManager.Condition[] calldata _conditions
     ) external {
         // if 'feeSwitch' == true, calculate fees based on applicable '_totalAmount', so each total amount + fee amount will be used in the DoubleTokenLexscrow deployment
         uint256 _fee1; // default fees of 0
