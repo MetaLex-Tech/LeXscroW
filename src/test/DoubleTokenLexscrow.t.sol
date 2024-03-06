@@ -101,9 +101,7 @@ abstract contract ERC20Permit is ERC20 {
     /// @dev `keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")`.
     bytes32 internal constant DOMAIN_TYPEHASH =
         0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f;
-
     bytes32 public DOMAIN_SEPARATOR;
-
     bytes32 internal hashedDomainName;
     bytes32 internal hashedDomainVersion;
     uint256 internal initialChainId;
@@ -203,17 +201,10 @@ abstract contract ERC20Permit is ERC20 {
 /// @notice ERC20 token contract
 /// @dev not burnable or mintable; ERC20Permit implemented
 contract TestToken is ERC20Permit {
-    /// -----------------------------------------------------------------------
-    /// ERC20 data
-    /// -----------------------------------------------------------------------
     string public constant TESTTOKEN_NAME = "Test Token";
     string public constant TESTTOKEN_SYMBOL = "TEST";
     string public constant TESTTOKEN_VERSION = "1";
     uint8 public constant TESTTOKEN_DECIMALS = 18;
-
-    /// -----------------------------------------------------------------------
-    /// Constructor
-    /// -----------------------------------------------------------------------
 
     constructor(address _user)
         ERC20Permit(
@@ -234,23 +225,21 @@ contract TestToken is ERC20Permit {
 
 /// @dev to test EIP-712 operations
 contract SigUtils {
-    bytes32 internal DOMAIN_SEPARATOR;
-
-    // mockToken.domainSeparator()
-    constructor(bytes32 _DOMAIN_SEPARATOR) {
-        DOMAIN_SEPARATOR = _DOMAIN_SEPARATOR;
-    }
-
-    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
-    bytes32 public constant PERMITTYPEHASH =
-        0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
-
     struct Permit {
         address owner;
         address spender;
         uint256 value;
         uint256 nonce;
         uint256 deadline;
+    }
+    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+    bytes32 public constant PERMITTYPEHASH =
+        0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
+    bytes32 internal DOMAIN_SEPARATOR;
+
+    // mockToken.domainSeparator()
+    constructor(bytes32 _DOMAIN_SEPARATOR) {
+        DOMAIN_SEPARATOR = _DOMAIN_SEPARATOR;
     }
 
     // computes the hash of a permit
@@ -289,20 +278,13 @@ contract SigUtils {
     }
 }
 
-/// @notice Second ERC20 token contract
+/// @notice Second ERC20 token contract with 6 decimals
 /// @dev not burnable or mintable; ERC20Permit implemented
 contract TestToken2 is ERC20Permit {
-    /// -----------------------------------------------------------------------
-    /// ERC20 data
-    /// -----------------------------------------------------------------------
     string public constant TESTTOKEN_NAME = "Test Token 2";
     string public constant TESTTOKEN_SYMBOL = "TEST2";
     string public constant TESTTOKEN_VERSION = "1";
-    uint8 public constant TESTTOKEN_DECIMALS = 18;
-
-    /// -----------------------------------------------------------------------
-    /// Constructor
-    /// -----------------------------------------------------------------------
+    uint8 public constant TESTTOKEN_DECIMALS = 6; //test difference decimals amount
 
     constructor(address _user)
         ERC20Permit(
@@ -347,7 +329,7 @@ contract DoubleTokenLexscrowTest is Test {
     address internal buyer = vm.addr(buyerPrivateKey);
     address internal seller = vm.addr(sellerPrivateKey);
     // using zero address because 'receiver' is retrieved at 'execute()' via an internal 'DoubleTokenLexscrowFactory()' call;
-    // it has a fallback to address(0). Since the fallback will occur every time with this test, hardcode address(0)
+    // it has a fallback to address(0). Since the fallback will occur every time with this test and receiver functionality is tested in DoubleTokenLexscrowFactoryTest, hardcode address(0)
     address internal receiver = address(0);
     address escrowTestAddr;
     address testTokenAddr;
@@ -579,7 +561,6 @@ contract DoubleTokenLexscrowTest is Test {
         }
     }
 
-    // seller will deposit token2, so _token1Deposit should be false for this
     function testSellerDepositTokens(bool _token1Deposit, uint256 _amount)
         public
     {
@@ -590,7 +571,7 @@ contract DoubleTokenLexscrowTest is Test {
         vm.startPrank(seller);
         testToken2.approve(escrowTestAddr, _amount);
         if (
-            _token1Deposit ||
+            _token1Deposit || // seller will deposit token2, so _token1Deposit should be false for this
             _amount + testToken2.balanceOf(address(this)) > totalAmount + fee ||
             (escrowTest.openOffer() && _amount < totalAmount + fee) ||
             escrowTest.expirationTime() <= block.timestamp
@@ -805,7 +786,7 @@ contract DoubleTokenLexscrowTest is Test {
         LexscrowConditionManager.Condition[]
             memory _cond = new LexscrowConditionManager.Condition[](1);
         _cond[0] = LexscrowConditionManager.Condition(address(this), _log);
-        LexscrowConditionManager _manager = new LexscrowConditionManager(_cond);
+        LexscrowConditionManager _manager = new LexscrowConditionManager(_cond); // conditionManager fuzz testing done in LexscrowConditionManagerTest
         /// feed 'address(this)' as the condition to return the fuzzed bool value from 'checkCondition()'
         DoubleTokenLexscrow conditionEscrowTest = new DoubleTokenLexscrow(
             true,
@@ -837,7 +818,6 @@ contract DoubleTokenLexscrowTest is Test {
             testToken.balanceOf(receiver)
         );
         bool _executed;
-
         if (
             !_baseCondition ||
             conditionEscrowTest.isExpired() ||
