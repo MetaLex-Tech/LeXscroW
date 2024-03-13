@@ -335,7 +335,8 @@ contract EthLexscrowTest is Test {
             (_fee < type(uint256).max / 2 &&
                 _totalAmount < type(uint256).max / 2) &&
                 _deposit <= _totalAmount &&
-                _totalAmount != 0
+                _totalAmount != 0 &&
+                _timestamp > block.timestamp
         );
         EthLexscrow.Amounts memory _amounts = EthLexscrow.Amounts(
             _deposit,
@@ -346,7 +347,7 @@ contract EthLexscrowTest is Test {
         fuzzEscrowTest = new EthLexscrow(
             true,
             true,
-            expirationTime,
+            _timestamp,
             seller,
             buyer,
             address(0),
@@ -359,9 +360,6 @@ contract EthLexscrowTest is Test {
             (fuzzEscrowTest.amountWithdrawable(buyer) +
                 fuzzEscrowTest.amountWithdrawable(seller));
 
-        // test expiry
-        vm.warp(_timestamp);
-
         uint256 _preSellerBalance = fuzzEscrowTest.seller().balance;
         bool _approved;
 
@@ -370,10 +368,30 @@ contract EthLexscrowTest is Test {
             !fuzzEscrowTest.buyerApproved() ||
             _preBalance != fuzzEscrowTest.totalWithFee() ||
             _deposit > _totalAmount ||
-            fuzzEscrowTest.expirationTime() <= _timestamp
+            fuzzEscrowTest.expirationTime() <= block.timestamp
         ) vm.expectRevert();
         else _approved = true;
 
+        fuzzEscrowTest.execute();
+
+        if (!_approved && !fuzzEscrowTest.buyerApproved()) {
+            vm.prank(buyer);
+            fuzzEscrowTest.readyToExecute();
+            vm.stopPrank();
+        }
+        if (!_approved && !fuzzEscrowTest.sellerApproved()) {
+            vm.prank(seller);
+            fuzzEscrowTest.readyToExecute();
+            vm.stopPrank();
+        }
+        // try again after intentionally approving; will also revert if already _approved (already executed once and balance not reloaded)
+        if (
+            _approved ||
+            _preBalance != fuzzEscrowTest.totalWithFee() ||
+            _deposit > _totalAmount ||
+            fuzzEscrowTest.expirationTime() <= block.timestamp
+        ) vm.expectRevert();
+        else _approved = true;
         fuzzEscrowTest.execute();
 
         // both approval booleans should have been deleted regardless of whether the escrow expired
