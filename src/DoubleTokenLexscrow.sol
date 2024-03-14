@@ -149,8 +149,8 @@ abstract contract ReentrancyGuard {
 
 /**
  * @title       DoubleTokenLexscrow
- **/
-/** @notice non-custodial bilateral smart escrow contract using ERC20 tokens, supporting:
+ *
+ * @notice non-custodial bilateral smart escrow contract using ERC20 tokens, supporting:
  * deposit tokens via approve+transfer or EIP2612 permit signature
  * identified parties or open offer (party that deposits totalAmount1 of token1 becomes 'buyer', and vice versa)
  * escrow expiration denominated in seconds
@@ -159,8 +159,8 @@ abstract contract ReentrancyGuard {
  * no separate approval is necessary as both sides must deposit value (which serves as signalled approval to execute)
  * automatically refundable (withdrawable) to buyer and seller at expiry if not executed
  * if executed, re-usable by parties until expiration time
- **/
-/** @dev contract executes and simultaneously releases 'totalAmount1' to 'seller' and 'totalAmount2' to 'buyer' iff:
+ *
+ * @dev contract executes and simultaneously releases 'totalAmount1' to 'seller' and 'totalAmount2' to 'buyer' iff:
  * (1) 'buyer' and 'seller' have respectively deposited 'totalAmount1' + 'fee1' of 'token1' and 'totalAmount2' + 'fee2' of 'token2'
  * (2) token1.balanceOf(address(this)) >= 'totalAmount1' + 'fee1' && token2.balanceOf(address(this)) >= 'totalAmount2' + 'fee2'
  * (3) 'expirationTime' > block.timestamp
@@ -180,9 +180,6 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         uint256 fee2;
         address receiver;
     }
-
-    // 60 seconds * 60 minutes * 24 hours
-    uint256 internal constant ONE_DAY = 86400;
 
     // internal visibility for gas savings, as each tokenContract is public and bears the same contract address as its respective interface
     IERC20Permit internal immutable token1; // tokenContract1
