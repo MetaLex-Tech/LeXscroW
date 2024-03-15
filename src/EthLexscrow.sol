@@ -49,15 +49,29 @@ abstract contract SafeTransferLib {
 }
 
 /// @notice Gas-optimized reentrancy protection for smart contracts.
+/// @author Solbase (https://github.com/Sol-DAO/solbase/blob/main/src/utils/ReentrancyGuard.sol), license copied below
 abstract contract ReentrancyGuard {
-    uint256 private _locked = 1;
+    /// @dev Equivalent to: `uint72(bytes9(keccak256("_REENTRANCY_GUARD_SLOT")))`.
+    /// 9 bytes is large enough to avoid collisions with lower slots,
+    /// but not too large to result in excessive bytecode bloat.
+    uint256 private constant _REENTRANCY_GUARD_SLOT = 0x929eee149b4bd21268;
     error Reentrancy();
 
+    /// @dev Guards a function from reentrancy.
     modifier nonReentrant() virtual {
-        if (_locked == 2) revert Reentrancy();
-        _locked = 2;
+        /// @solidity memory-safe-assembly
+        assembly {
+            if eq(sload(_REENTRANCY_GUARD_SLOT), address()) {
+                mstore(0x00, 0xab143c06) // `Reentrancy()`.
+                revert(0x1c, 0x04)
+            }
+            sstore(_REENTRANCY_GUARD_SLOT, address())
+        }
         _;
-        _locked = 1;
+        /// @solidity memory-safe-assembly
+        assembly {
+            sstore(_REENTRANCY_GUARD_SLOT, codesize())
+        }
     }
 }
 
