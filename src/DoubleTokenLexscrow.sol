@@ -1,11 +1,12 @@
-//SPDX-License-Identifier: MIT
+//SPDX-License-Identifier: AGPL-3.0-only
+
 pragma solidity ^0.8.18;
 
 /**
  * this solidity file is provided as-is; no guarantee, representation or warranty is being made, express or implied,
  * as to the safety or correctness of the code or any smart contracts or other software deployed from these files.
- * this solidity file is currently NOT AUDITED; there can be no assurance it will work as intended,
- * and users may experience delays, failures, errors, omissions or loss of transmitted information or value.
+ * There can be no assurance it will work as intended, and users may experience delays, failures, errors, omissions
+ * or loss of transmitted information or value.
  *
  * Any users, developers, or adapters of these files should proceed with caution and use at their own risk.
  **/
@@ -22,10 +23,10 @@ interface ILexscrowConditionManager {
 
 /// @notice interface for ERC-20 standard token contract, including EIP2612 permit function
 interface IERC20Permit {
-    function allowance(address owner, address spender)
-        external
-        view
-        returns (uint256);
+    function allowance(
+        address owner,
+        address spender
+    ) external view returns (uint256);
 
     function balanceOf(address account) external view returns (uint256);
 
@@ -42,7 +43,7 @@ interface IERC20Permit {
     ) external;
 }
 
-/// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount
+/// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount for supported tokens
 interface IReceipt {
     function printReceipt(
         address token,
@@ -62,11 +63,7 @@ abstract contract SafeTransferLib {
 
     /// @dev Sends `amount` of ERC20 `token` from the current contract to `to`.
     /// Reverts upon failure.
-    function safeTransfer(
-        address token,
-        address to,
-        uint256 amount
-    ) internal {
+    function safeTransfer(address token, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, to) // Store the `to` argument.
@@ -185,7 +182,6 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     IERC20Permit internal immutable token1; // tokenContract1
     IERC20Permit internal immutable token2; // tokenContract2
 
-    // Receipt.sol contract address
     IReceipt internal immutable receipt;
     ILexscrowConditionManager public immutable conditionManager;
     address public immutable tokenContract1;
@@ -451,10 +447,10 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
      ** records amount deposited by msg.sender for refundability at expiry  */
     /// @param _token1Deposit: if true, depositing 'token1'; if false, depositing 'token2'
     /// @param _amount: amount of tokens deposited (tokenContract2 if seller, otherwise tokenContract1). If 'openOffer', '_amount' must == 'totalAmount1' + 'fee1' or 'totalAmount2' + 'fee2' as applicable
-    function depositTokens(bool _token1Deposit, uint256 _amount)
-        external
-        nonReentrant
-    {
+    function depositTokens(
+        bool _token1Deposit,
+        uint256 _amount
+    ) external nonReentrant {
         if (expirationTime <= block.timestamp)
             revert DoubleTokenLexscrow_IsExpired();
         if (_amount == 0) revert DoubleTokenLexscrow_ZeroAmount();
@@ -576,7 +572,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
             safeTransfer(_tokenContract2, buyer, _totalAmount2);
 
             // effective time of execution is block.timestamp, no need to emit token contracts, condition manager details, or amounts as these are immutable variables
-            // and if the latter is desired to be logged, can use the ERC20 Transfer event
+            // and if the latter is desired to be logged, can use the ERC20 Transfer event; 'DoubleTokenLexscrow_Executed' emission implies emitted Transfer events
             emit DoubleTokenLexscrow_Executed(
                 block.timestamp,
                 seller,
@@ -587,13 +583,13 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     }
 
     /// @notice convenience function to get a USD value receipt if a dAPI / data feed proxy exists for a tokenContract, for example for 'seller' to submit 'totalAmount1' and '_token1' == true immediately after execution/release of DoubleTokenLexscrow
-    /// @dev external call will revert if price quote is too stale or if token is not supported; event containing '_paymentId' and '_usdValue' emitted by Receipt.sol
+    /// @dev external call will revert if price quote is too stale or if token is not supported; event containing '_paymentId' and '_usdValue' emitted by Receipt.sol; irrelevant to execution of this contract
     /// @param _token1: whether caller is seeking a receipt for 'token1'; if true, yes, if false, seeking receipt for 'token2'
     /// @param _tokenAmount: amount of tokens for which caller is seeking the total USD value receipt
-    function getReceipt(bool _token1, uint256 _tokenAmount)
-        external
-        returns (uint256 _paymentId, uint256 _usdValue)
-    {
+    function getReceipt(
+        bool _token1,
+        uint256 _tokenAmount
+    ) external returns (uint256 _paymentId, uint256 _usdValue) {
         if (_token1)
             return
                 receipt.printReceipt(
