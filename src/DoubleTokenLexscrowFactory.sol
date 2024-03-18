@@ -1,11 +1,12 @@
-//SPDX-License-Identifier: MIT
+//SPDX-License-Identifier: AGPL-3.0-only
+
 pragma solidity ^0.8.18;
 
 /**
  * this solidity file is provided as-is; no guarantee, representation or warranty is being made, express or implied,
  * as to the safety or correctness of the code or any smart contracts or other software deployed from these files.
- * this solidity file is currently NOT AUDITED; there can be no assurance it will work as intended,
- * and users may experience delays, failures, errors, omissions or loss of transmitted information or value.
+ * There can be no assurance it will work as intended, and users may experience delays, failures, errors, omissions
+ * or loss of transmitted information or value.
  *
  * Any users, developers, or adapters of these files should proceed with caution and use at their own risk.
  **/
