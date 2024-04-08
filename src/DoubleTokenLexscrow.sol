@@ -2,20 +2,16 @@
 
 pragma solidity ^0.8.18;
 
-/**
- * this solidity file is provided as-is; no guarantee, representation or warranty is being made, express or implied,
- * as to the safety or correctness of the code or any smart contracts or other software deployed from these files.
- * There can be no assurance it will work as intended, and users may experience delays, failures, errors, omissions
- * or loss of transmitted information or value.
- *
- * Any users, developers, or adapters of these files should proceed with caution and use at their own risk.
- **/
-
-// O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O \\
-
-/////// o=o=o=o=o DoubleTokenLexscrow o=o=o=o=o \\\\\\\
-
-// O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O \\
+/*
+*********************************
+██╗     ███████╗██╗   ██╗███████╗███████╗██████╗ ███████╗██╗    ██╗
+██║     ██╔════╝ ██║ ██╔╝██╔════╝██╔════╝██╔══██╗██╔══██║██║    ██║
+██║     █████╗    ╚██╔╝  ███████╗██║     ██████╔╝██║  ██║██║ █╗ ██║
+██║     ██╔══╝   ██╔╝██╗ ╚════██║██║     ██╔══██╗██║  ██║██║███╗██║
+███████╗███████╗██║   ██╗███████║███████╗██║  ██║███████║╚███╔███╔╝
+╚══════╝╚══════╝╚═╝   ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝ ╚══╝╚══╝ 
+                                 ***********************************
+                                                                  */
 
 interface ILexscrowConditionManager {
     function checkConditions() external returns (bool);
@@ -23,10 +19,7 @@ interface ILexscrowConditionManager {
 
 /// @notice interface for ERC-20 standard token contract, including EIP2612 permit function
 interface IERC20Permit {
-    function allowance(
-        address owner,
-        address spender
-    ) external view returns (uint256);
+    function allowance(address owner, address spender) external view returns (uint256);
 
     function balanceOf(address account) external view returns (uint256);
 
@@ -45,16 +38,11 @@ interface IERC20Permit {
 
 /// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount for supported tokens
 interface IReceipt {
-    function printReceipt(
-        address token,
-        uint256 tokenAmount,
-        uint256 decimals
-    ) external returns (uint256, uint256);
+    function printReceipt(address token, uint256 tokenAmount, uint256 decimals) external returns (uint256, uint256);
 }
 
 /// @notice Solady's SafeTransferLib 'SafeTransfer()' and 'SafeTransferFrom()'.  Extracted from library and pasted for convenience, transparency, and size minimization.
 /// @author Solady (https://github.com/Vectorized/solady/blob/main/src/utils/SafeTransferLib.sol), license copied below
-/// @dev implemented as abstract contract rather than library for size/gas reasons
 abstract contract SafeTransferLib {
     /// @dev The ERC20 `transfer` has failed.
     error TransferFailed();
@@ -87,12 +75,7 @@ abstract contract SafeTransferLib {
     /// @dev Sends `amount` of ERC20 `token` from `from` to `to`.
     /// Reverts upon failure.
     /// The `from` account must have at least `amount` approved for the current contract to manage.
-    function safeTransferFrom(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    ) internal {
+    function safeTransferFrom(address token, address from, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             let m := mload(0x40) // Cache the free memory pointer.
@@ -147,27 +130,25 @@ abstract contract ReentrancyGuard {
 /**
  * @title       DoubleTokenLexscrow
  *
- * @notice non-custodial bilateral smart escrow contract using ERC20 tokens, supporting:
- * deposit tokens via approve+transfer or EIP2612 permit signature
- * identified parties or open offer (party that deposits totalAmount1 of token1 becomes 'buyer', and vice versa)
- * escrow expiration denominated in seconds
- * optional conditions for execution (contingent execution based on oracle-fed external data value, signatures, etc.)
- * buyer and seller addresses replaceable by applicable party
- * no separate approval is necessary as both sides must deposit value (which serves as signalled approval to execute)
- * automatically refundable (withdrawable) to buyer and seller at expiry if not executed
- * if executed, re-usable by parties until expiration time
+ * @notice      Non-custodial bilateral smart escrow contract using ERC20 tokens, supporting:
+ *      deposit tokens via approve+transfer or EIP2612 permit signature
+ *      identified parties or open offer (party that deposits totalAmount1 of token1 becomes 'buyer', and vice versa)
+ *      escrow expiration denominated in seconds
+ *      optional conditions for execution (contingent execution based on oracle-fed external data value, signatures, etc.)
+ *      buyer and seller addresses replaceable by applicable party
+ *      no separate approval is necessary as both sides must deposit value (which serves as signalled approval to execute)
+ *      automatically refunded to buyer and seller, as applicable, at expiry if not executed
+ *      if executed, re-usable by parties until expiration time
  *
- * @dev contract executes and simultaneously releases 'totalAmount1' to 'seller' and 'totalAmount2' to 'buyer' iff:
- * (1) 'buyer' and 'seller' have respectively deposited 'totalAmount1' + 'fee1' of 'token1' and 'totalAmount2' + 'fee2' of 'token2'
- * (2) token1.balanceOf(address(this)) >= 'totalAmount1' + 'fee1' && token2.balanceOf(address(this)) >= 'totalAmount2' + 'fee2'
- * (3) 'expirationTime' > block.timestamp
- * (4) if there is/are condition(s), such condition(s) is/are satisfied
+ * @dev         Contract executes and simultaneously releases 'totalAmount1' to 'seller' and 'totalAmount2' to 'buyer' iff:
+ *      (1) 'buyer' and 'seller' have respectively deposited 'totalAmount1' + 'fee1' of 'token1' and 'totalAmount2' + 'fee2' of 'token2'
+ *      (2) token1.balanceOf(address(this)) >= 'totalAmount1' + 'fee1' && token2.balanceOf(address(this)) >= 'totalAmount2' + 'fee2'
+ *      (3) 'expirationTime' > block.timestamp
+ *      (4) if there is/are condition(s), such condition(s) is/are satisfied
  *
- * otherwise, amounts held in address(this) will be treated according to the code in 'checkIfExpired()' when called following expiry. Deposited fees are returned (by becoming withdrawable) if this contract expires.
+ *      Otherwise, deposited amounts are returned to the respective parties if this contract expires.
  *
- * variables are public for interface friendliness and enabling getters.
- * 'seller', 'buyer', 'deposit', 'openOffer' and other terminology, naming, and descriptors herein are used only for simplicity and convenience of reference, and
- * should not be interpreted to ascribe nor imply any agreement or relationship between or among any author, modifier, deployer, user, contract, asset, or other relevant participant hereto
+ *      Variables are public for interface friendliness and enabling getters.
  **/
 contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     struct Amounts {
@@ -198,23 +179,13 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     address public seller;
     bool public isExpired;
 
-    mapping(address => uint256) public amountWithdrawable1; // token1
-    mapping(address => uint256) public amountWithdrawable2; // token2
-
     ///
     /// EVENTS
     ///
 
-    event DoubleTokenLexscrow_AmountReceived(
-        address token,
-        uint256 tokenAmount
-    );
+    event DoubleTokenLexscrow_AmountReceived(address token, uint256 tokenAmount);
     event DoubleTokenLexscrow_BuyerUpdated(address newBuyer);
-    event DoubleTokenLexscrow_DepositedAmountWithdrawn(
-        address recipient,
-        address token,
-        uint256 amount
-    );
+    event DoubleTokenLexscrow_DepositedAmountWithdrawn(address recipient, address token, uint256 amount);
     event DoubleTokenLexscrow_Deployed(
         bool openOffer,
         uint256 expirationTime,
@@ -225,17 +196,9 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         address conditionManager,
         Amounts amounts
     );
-    event DoubleTokenLexscrow_Executed(
-        uint256 indexed effectiveTime,
-        address seller,
-        address buyer,
-        address receiver
-    );
+    event DoubleTokenLexscrow_Executed(uint256 indexed effectiveTime, address seller, address buyer, address receiver);
     event DoubleTokenLexscrow_Expired();
-    event DoubleTokenLexscrow_TotalAmountInEscrow(
-        address depositor,
-        address token
-    );
+    event DoubleTokenLexscrow_TotalAmountInEscrow(address depositor, address token);
     event DoubleTokenLexscrow_SellerUpdated(address newSeller);
 
     ///
@@ -251,21 +214,22 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     error DoubleTokenLexscrow_NonERC20Contract();
     error DoubleTokenLexscrow_NotReadyToExecute();
     error DoubleTokenLexscrow_ZeroAmount();
+    error DoubleTokenLexscrow_ZeroAddress();
 
     ///
     /// FUNCTIONS
     ///
 
     /// @notice constructs the DoubleTokenLexscrow smart escrow contract. Arranger MUST verify that _tokenContract is both ERC20- and EIP2612- standard compliant and that the conditions are proper, as neither address(this) nor the LeXscrow Factory contract fully perform such checks.
-    /// @param _openOffer: whether this escrow is open to any prospective 'buyer' or 'seller'. A 'buyer' assents by depositing 'totalAmount1' + 'fee1' of 'token1' to address(this), and a 'seller' assents by depositing 'totalAmount2' + 'fee2' of 'token2' to address(this) via the applicable function
-    /// @param _expirationTime: _expirationTime in seconds (Unix time), which will be compared against block.timestamp. Because tokens will only be released upon execution or become withdrawable at expiry, submitting a reasonable expirationTime is imperative
-    /// @param _seller: the seller's address, depositor of the 'totalAmount2' + 'fee2' (in token2) and recipient of the 'totalAmount1' (in token1) if the contract executes. Automatically updated by successful 'depositTokensWithPermit()' or 'depositTokens()' if 'openOffer'
-    /// @param _buyer: the buyer's address, depositor of the 'totalAmount1' + 'fee1' (in token1) and recipient of the 'totalAmount2' (in token2) if the contract executes. Automatically updated by successful 'depositTokensWithPermit()' or 'depositTokens()' if 'openOffer'
-    /// @param _tokenContract1: contract address for the ERC20 token used in this DoubleTokenLexscrow as 'token1'
-    /// @param _tokenContract2: contract address for the ERC20 token used in this DoubleTokenLexscrow as 'token2'
+    /// @param _openOffer whether this escrow is open to any prospective 'buyer' or 'seller'. A 'buyer' assents by depositing 'totalAmount1' + 'fee1' of 'token1' to address(this), and a 'seller' assents by depositing 'totalAmount2' + 'fee2' of 'token2' to address(this) via the applicable function
+    /// @param _expirationTime _expirationTime in seconds (Unix time), which will be compared against block.timestamp. Because tokens will only be released upon execution or returned after expiry, submitting a reasonable expirationTime is imperative
+    /// @param _seller the seller's address, depositor of the 'totalAmount2' + 'fee2' (in token2) and recipient of the 'totalAmount1' (in token1) if the contract executes. Automatically updated by successful 'depositTokensWithPermit()' or 'depositTokens()' if 'openOffer'
+    /// @param _buyer the buyer's address, depositor of the 'totalAmount1' + 'fee1' (in token1) and recipient of the 'totalAmount2' (in token2) if the contract executes. Automatically updated by successful 'depositTokensWithPermit()' or 'depositTokens()' if 'openOffer'
+    /// @param _tokenContract1 contract address for the ERC20 token used in this DoubleTokenLexscrow as 'token1'
+    /// @param _tokenContract2 contract address for the ERC20 token used in this DoubleTokenLexscrow as 'token2'
     /// @param _conditionManager contract address for ConditionManager.sol
     /// @param _receipt contract address for Receipt.sol contract
-    /// @param _amounts: struct containing the total amounts and fees as follows:
+    /// @param _amounts struct containing the total amounts and fees as follows:
     /// _totalAmount1: total amount of 'tokenContract1' ultimately intended for 'seller', not including fees
     /// _fee1: amount of 'tokenContract1' that also must be deposited, which will be paid to the fee receiver
     /// _totalAmount2: total amount of 'tokenContract2' ultimately intended for 'buyer', not including fees
@@ -282,24 +246,22 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         address _receipt,
         Amounts memory _amounts
     ) payable {
-        if (_amounts.totalAmount1 == 0 || _amounts.totalAmount2 == 0)
-            revert DoubleTokenLexscrow_ZeroAmount();
-        if (_expirationTime <= block.timestamp)
-            revert DoubleTokenLexscrow_IsExpired();
+        if (_amounts.totalAmount1 == 0 || _amounts.totalAmount2 == 0) revert DoubleTokenLexscrow_ZeroAmount();
+        if (_expirationTime <= block.timestamp) revert DoubleTokenLexscrow_IsExpired();
 
         // quick staticcall condition check that each of '_tokenContract1' and '_tokenContract2' is at least partially ERC-20 compliant by checking if balanceOf function exists
-        (bool successBalanceOf1, bytes memory dataBalanceOf1) = _tokenContract1
-            .staticcall(
-                abi.encodeWithSignature("balanceOf(address)", address(this))
-            );
-        (bool successBalanceOf2, bytes memory dataBalanceOf2) = _tokenContract2
-            .staticcall(
-                abi.encodeWithSignature("balanceOf(address)", address(this))
-            );
+        (bool successBalanceOf1, bytes memory dataBalanceOf1) = _tokenContract1.staticcall(
+            abi.encodeWithSignature("balanceOf(address)", address(this))
+        );
+        (bool successBalanceOf2, bytes memory dataBalanceOf2) = _tokenContract2.staticcall(
+            abi.encodeWithSignature("balanceOf(address)", address(this))
+        );
 
         if (
+            _tokenContract1.code.length == 0 ||
             !successBalanceOf1 ||
             dataBalanceOf1.length == 0 ||
+            _tokenContract2.code.length == 0 ||
             !successBalanceOf2 ||
             dataBalanceOf2.length == 0
         ) revert DoubleTokenLexscrow_NonERC20Contract();
@@ -338,13 +300,13 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
      ** max '_amount' limit of 'totalAmount1' + 'fee1' or 'totalAmount2' + 'fee2' as applicable, and if such amount is already held or escrow has expired, revert.
      ** also updates 'seller' or 'buyer' to '_depositor' (depending on token used) if true 'openOffer', and
      ** records amount deposited by '_depositor' for refundability at expiry  */
-    /// @param _token1Deposit: if true, depositing 'token1'; if false, depositing 'token2'
-    /// @param _depositor: depositor of the '_amount' of tokens, often msg.sender/originating EOA, but if !'openOffer', must == 'buyer' if 'token1Deposit' or == 'seller' if 'token2Deposit'
-    /// @param _amount: amount of tokens deposited. If 'openOffer', '_amount' must == 'totalAmount1' + 'fee1' or 'totalAmount2' + 'fee2' as applicable
-    /// @param _deadline: deadline for usage of the permit approval signature
-    /// @param v: ECDSA sig parameter
-    /// @param r: ECDSA sig parameter
-    /// @param s: ECDSA sig parameter
+    /// @param _token1Deposit if true, depositing 'token1'; if false, depositing 'token2'
+    /// @param _depositor depositor of the '_amount' of tokens, often msg.sender/originating EOA, but if !'openOffer', must == 'buyer' if 'token1Deposit' or == 'seller' if 'token2Deposit'
+    /// @param _amount amount of tokens deposited. If 'openOffer', '_amount' must == 'totalAmount1' + 'fee1' or 'totalAmount2' + 'fee2' as applicable
+    /// @param _deadline deadline for usage of the permit approval signature
+    /// @param v ECDSA sig parameter
+    /// @param r ECDSA sig parameter
+    /// @param s ECDSA sig parameter
     function depositTokensWithPermit(
         bool _token1Deposit,
         address _depositor,
@@ -354,20 +316,16 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         bytes32 r,
         bytes32 s
     ) external nonReentrant {
-        if (_deadline < block.timestamp || expirationTime <= block.timestamp)
-            revert DoubleTokenLexscrow_IsExpired();
+        if (_deadline < block.timestamp || expirationTime <= block.timestamp) revert DoubleTokenLexscrow_IsExpired();
         if (_amount == 0) revert DoubleTokenLexscrow_ZeroAmount();
         bool _openOffer = openOffer;
 
         if (!_token1Deposit) {
-            if (!_openOffer && _depositor != seller)
-                revert DoubleTokenLexscrow_NotSeller();
+            if (!_openOffer && _depositor != seller) revert DoubleTokenLexscrow_NotSeller();
             uint256 _totalWithFee2 = totalAmount2 + fee2;
             uint256 _balance2 = token2.balanceOf(address(this)) + _amount;
-            if (_balance2 > _totalWithFee2)
-                revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
-            if (_openOffer && _balance2 < _totalWithFee2)
-                revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
+            if (_balance2 > _totalWithFee2) revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+            if (_openOffer && _balance2 < _totalWithFee2) revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
             address _tokenContract2 = tokenContract2;
 
             if (_balance2 == _totalWithFee2) {
@@ -376,37 +334,18 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
                     seller = _depositor;
                     emit DoubleTokenLexscrow_SellerUpdated(_depositor);
                 }
-                emit DoubleTokenLexscrow_TotalAmountInEscrow(
-                    _depositor,
-                    _tokenContract2
-                );
+                emit DoubleTokenLexscrow_TotalAmountInEscrow(_depositor, _tokenContract2);
             }
             emit DoubleTokenLexscrow_AmountReceived(_tokenContract2, _amount);
 
-            token2.permit(
-                _depositor,
-                address(this),
-                _amount,
-                _deadline,
-                v,
-                r,
-                s
-            );
-            safeTransferFrom(
-                _tokenContract2,
-                _depositor,
-                address(this),
-                _amount
-            );
+            token2.permit(_depositor, address(this), _amount, _deadline, v, r, s);
+            safeTransferFrom(_tokenContract2, _depositor, address(this), _amount);
         } else {
-            if (!_openOffer && _depositor != buyer)
-                revert DoubleTokenLexscrow_NotBuyer();
+            if (!_openOffer && _depositor != buyer) revert DoubleTokenLexscrow_NotBuyer();
             uint256 _totalWithFee1 = totalAmount1 + fee1;
             uint256 _balance1 = token1.balanceOf(address(this)) + _amount;
-            if (_balance1 > _totalWithFee1)
-                revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
-            if (_openOffer && _balance1 < _totalWithFee1)
-                revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
+            if (_balance1 > _totalWithFee1) revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+            if (_openOffer && _balance1 < _totalWithFee1) revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
             address _tokenContract1 = tokenContract1;
 
             if (_balance1 == _totalWithFee1) {
@@ -415,28 +354,12 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
                     buyer = _depositor;
                     emit DoubleTokenLexscrow_BuyerUpdated(_depositor);
                 }
-                emit DoubleTokenLexscrow_TotalAmountInEscrow(
-                    _depositor,
-                    _tokenContract1
-                );
+                emit DoubleTokenLexscrow_TotalAmountInEscrow(_depositor, _tokenContract1);
             }
             emit DoubleTokenLexscrow_AmountReceived(_tokenContract1, _amount);
 
-            token1.permit(
-                _depositor,
-                address(this),
-                _amount,
-                _deadline,
-                v,
-                r,
-                s
-            );
-            safeTransferFrom(
-                _tokenContract1,
-                _depositor,
-                address(this),
-                _amount
-            );
+            token1.permit(_depositor, address(this), _amount, _deadline, v, r, s);
+            safeTransferFrom(_tokenContract1, _depositor, address(this), _amount);
         }
     }
 
@@ -445,28 +368,21 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
      ** max '_amount' limit of 'totalAmount1' + 'fee1' or 'totalAmount2' + 'fee2' as applicable, and if such amount is already held or escrow has expired, revert.
      ** updates 'seller' or 'buyer' to msg.sender (depending on token used) if true 'openOffer', and
      ** records amount deposited by msg.sender for refundability at expiry  */
-    /// @param _token1Deposit: if true, depositing 'token1'; if false, depositing 'token2'
-    /// @param _amount: amount of tokens deposited (tokenContract2 if seller, otherwise tokenContract1). If 'openOffer', '_amount' must == 'totalAmount1' + 'fee1' or 'totalAmount2' + 'fee2' as applicable
-    function depositTokens(
-        bool _token1Deposit,
-        uint256 _amount
-    ) external nonReentrant {
-        if (expirationTime <= block.timestamp)
-            revert DoubleTokenLexscrow_IsExpired();
+    /// @param _token1Deposit if true, depositing 'token1'; if false, depositing 'token2'
+    /// @param _amount amount of tokens deposited (tokenContract2 if seller, otherwise tokenContract1). If 'openOffer', '_amount' must == 'totalAmount1' + 'fee1' or 'totalAmount2' + 'fee2' as applicable
+    function depositTokens(bool _token1Deposit, uint256 _amount) external nonReentrant {
+        if (expirationTime <= block.timestamp) revert DoubleTokenLexscrow_IsExpired();
         if (_amount == 0) revert DoubleTokenLexscrow_ZeroAmount();
         bool _openOffer = openOffer;
 
         if (!_token1Deposit) {
-            if (!_openOffer && msg.sender != seller)
-                revert DoubleTokenLexscrow_NotSeller();
+            if (!_openOffer && msg.sender != seller) revert DoubleTokenLexscrow_NotSeller();
             if (token2.allowance(msg.sender, address(this)) < _amount)
                 revert DoubleTokenLexscrow_AmountNotApprovedForTransferFrom();
             uint256 _totalWithFee2 = totalAmount2 + fee2;
             uint256 _balance2 = token2.balanceOf(address(this)) + _amount;
-            if (_balance2 > _totalWithFee2)
-                revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
-            if (_openOffer && _balance2 < _totalWithFee2)
-                revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
+            if (_balance2 > _totalWithFee2) revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+            if (_openOffer && _balance2 < _totalWithFee2) revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
             address _tokenContract2 = tokenContract2;
 
             if (_balance2 == _totalWithFee2) {
@@ -475,30 +391,19 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
                     seller = msg.sender;
                     emit DoubleTokenLexscrow_SellerUpdated(msg.sender);
                 }
-                emit DoubleTokenLexscrow_TotalAmountInEscrow(
-                    msg.sender,
-                    _tokenContract2
-                );
+                emit DoubleTokenLexscrow_TotalAmountInEscrow(msg.sender, _tokenContract2);
             }
             emit DoubleTokenLexscrow_AmountReceived(_tokenContract2, _amount);
 
-            safeTransferFrom(
-                _tokenContract2,
-                msg.sender,
-                address(this),
-                _amount
-            );
+            safeTransferFrom(_tokenContract2, msg.sender, address(this), _amount);
         } else {
-            if (!_openOffer && msg.sender != buyer)
-                revert DoubleTokenLexscrow_NotBuyer();
+            if (!_openOffer && msg.sender != buyer) revert DoubleTokenLexscrow_NotBuyer();
             if (token1.allowance(msg.sender, address(this)) < _amount)
                 revert DoubleTokenLexscrow_AmountNotApprovedForTransferFrom();
             uint256 _totalWithFee1 = totalAmount1 + fee1;
             uint256 _balance1 = token1.balanceOf(address(this)) + _amount;
-            if (_balance1 > _totalWithFee1)
-                revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
-            if (_openOffer && _balance1 < _totalWithFee1)
-                revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
+            if (_balance1 > _totalWithFee1) revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+            if (_openOffer && _balance1 < _totalWithFee1) revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
             address _tokenContract1 = tokenContract1;
 
             if (_balance1 == _totalWithFee1) {
@@ -507,34 +412,30 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
                     buyer = msg.sender;
                     emit DoubleTokenLexscrow_BuyerUpdated(msg.sender);
                 }
-                emit DoubleTokenLexscrow_TotalAmountInEscrow(
-                    msg.sender,
-                    _tokenContract1
-                );
+                emit DoubleTokenLexscrow_TotalAmountInEscrow(msg.sender, _tokenContract1);
             }
             emit DoubleTokenLexscrow_AmountReceived(_tokenContract1, _amount);
 
-            safeTransferFrom(
-                _tokenContract1,
-                msg.sender,
-                address(this),
-                _amount
-            );
+            safeTransferFrom(_tokenContract1, msg.sender, address(this), _amount);
         }
     }
 
     /// @notice for the current 'seller' to designate a new seller address
-    /// @param _seller: new address of seller
+    /// @param _seller new address of seller; conditional protects against passing address (0)
     function updateSeller(address _seller) external {
         if (msg.sender != seller) revert DoubleTokenLexscrow_NotSeller();
+        if (_seller == address(0)) revert DoubleTokenLexscrow_ZeroAddress();
+
         seller = _seller;
         emit DoubleTokenLexscrow_SellerUpdated(_seller);
     }
 
     /// @notice for the current 'buyer' to designate a new buyer address
-    /// @param _buyer: new address of buyer
+    /// @param _buyer new address of buyer; conditional protects against passing address (0)
     function updateBuyer(address _buyer) external {
         if (msg.sender != buyer) revert DoubleTokenLexscrow_NotBuyer();
+        if (_buyer == address(0)) revert DoubleTokenLexscrow_ZeroAddress();
+
         buyer = _buyer;
         emit DoubleTokenLexscrow_BuyerUpdated(_buyer);
     }
@@ -556,15 +457,14 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         if (
             token1.balanceOf(address(this)) < _totalWithFee1 ||
             token2.balanceOf(address(this)) < _totalWithFee2 ||
-            (address(conditionManager) != address(0) &&
-                !conditionManager.checkConditions())
+            (address(conditionManager) != address(0) && !conditionManager.checkConditions())
         ) revert DoubleTokenLexscrow_NotReadyToExecute();
 
         if (!checkIfExpired()) {
             address _receiver = receiver;
 
             // safeTransfer 'totalAmount1' to 'seller', 'totalAmount2' to 'buyer', and each fee to '_receiver'; note the deposit functions perform checks against depositing more than the totalAmounts plus fees,
-            // and further safeguarded by any excess balance being withdrawable by each respective depositing party side after expiry in 'checkIfExpired()'
+            // and further safeguarded by any excess balance being returned to the respective party after expiry in 'checkIfExpired()'
             // if any fails, function will revert
             safeTransfer(_tokenContract1, _receiver, _fee1);
             safeTransfer(_tokenContract1, seller, _totalAmount1);
@@ -573,83 +473,23 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
 
             // effective time of execution is block.timestamp, no need to emit token contracts, condition manager details, or amounts as these are immutable variables
             // and if the latter is desired to be logged, can use the ERC20 Transfer event; 'DoubleTokenLexscrow_Executed' emission implies emitted Transfer events
-            emit DoubleTokenLexscrow_Executed(
-                block.timestamp,
-                seller,
-                buyer,
-                _receiver
-            );
+            emit DoubleTokenLexscrow_Executed(block.timestamp, seller, buyer, _receiver);
         }
     }
 
     /// @notice convenience function to get a USD value receipt if a dAPI / data feed proxy exists for a tokenContract, for example for 'seller' to submit 'totalAmount1' and '_token1' == true immediately after execution/release of DoubleTokenLexscrow
     /// @dev external call will revert if price quote is too stale or if token is not supported; event containing '_paymentId' and '_usdValue' emitted by Receipt.sol; irrelevant to execution of this contract
-    /// @param _token1: whether caller is seeking a receipt for 'token1'; if true, yes, if false, seeking receipt for 'token2'
-    /// @param _tokenAmount: amount of tokens for which caller is seeking the total USD value receipt
-    function getReceipt(
-        bool _token1,
-        uint256 _tokenAmount
-    ) external returns (uint256 _paymentId, uint256 _usdValue) {
-        if (_token1)
-            return
-                receipt.printReceipt(
-                    tokenContract1,
-                    _tokenAmount,
-                    token1.decimals()
-                );
-        else
-            return
-                receipt.printReceipt(
-                    tokenContract2,
-                    _tokenAmount,
-                    token2.decimals()
-                );
+    /// @param _token1 whether caller is seeking a receipt for 'token1'; if true, yes, if false, seeking receipt for 'token2'
+    /// @param _tokenAmount amount of tokens for which caller is seeking the total USD value receipt
+    function getReceipt(bool _token1, uint256 _tokenAmount) external returns (uint256 _paymentId, uint256 _usdValue) {
+        if (_token1) return receipt.printReceipt(tokenContract1, _tokenAmount, token1.decimals());
+        else return receipt.printReceipt(tokenContract2, _tokenAmount, token2.decimals());
     }
 
-    /// @notice allows an address to withdraw tokens according to their applicable mapped value (refundable amount post-expiry)
-    /// @dev if 'isExpired', used by 'buyer' and/or 'seller' (as applicable)
-    function withdraw() external {
-        address _tokenContract1 = tokenContract1;
-        address _tokenContract2 = tokenContract2;
-        uint256 _amt1 = amountWithdrawable1[msg.sender];
-        uint256 _amt2 = amountWithdrawable2[msg.sender];
-        if (_amt1 == 0 && _amt2 == 0) revert DoubleTokenLexscrow_ZeroAmount();
-        else if (_amt1 != 0 && _amt2 == 0) {
-            delete amountWithdrawable1[msg.sender];
-            safeTransfer(_tokenContract1, msg.sender, _amt1);
-            emit DoubleTokenLexscrow_DepositedAmountWithdrawn(
-                msg.sender,
-                _tokenContract1,
-                _amt1
-            );
-        } else if (_amt1 == 0 && _amt2 != 0) {
-            delete amountWithdrawable2[msg.sender];
-            safeTransfer(_tokenContract2, msg.sender, _amt2);
-            emit DoubleTokenLexscrow_DepositedAmountWithdrawn(
-                msg.sender,
-                _tokenContract2,
-                _amt2
-            );
-        } else {
-            delete amountWithdrawable1[msg.sender];
-            delete amountWithdrawable2[msg.sender];
-            safeTransfer(_tokenContract1, msg.sender, _amt1);
-            safeTransfer(_tokenContract2, msg.sender, _amt2);
-            emit DoubleTokenLexscrow_DepositedAmountWithdrawn(
-                msg.sender,
-                _tokenContract1,
-                _amt1
-            );
-            emit DoubleTokenLexscrow_DepositedAmountWithdrawn(
-                msg.sender,
-                _tokenContract2,
-                _amt2
-            );
-        }
-    }
-
-    /// @notice check if expired, and if so, handle refundability to the identified 'buyer' and 'seller' at such time by updating the 'amountWithdrawable1' and 'amountWithdrawable2' mappings as applicable
-    /// @dev if expired, update isExpired boolean and allow 'buyer' to withdraw all of 'amountWithdrawable1' and allow 'seller' to withdraw all of 'amountWithdrawable2'
+    /// @notice check if expired, and if so, handle refundability to the identified 'buyer' and 'seller' at such time by returning their applicable tokens
+    /// @dev if expired, update isExpired boolean and safeTransfer 'buyer' all of 'token1' and 'seller' all of 'token2', as fees are only paid upon successful execution;
+    /// while the 'buyer' and'seller' may not have been the depositors, they are the best options for deposit return at the time of calling, especially considering
+    /// either may replace their own addresses at any time for any reason via 'updateBuyer' and 'updateSeller'
     /// @return isExpired
     function checkIfExpired() public nonReentrant returns (bool) {
         if (expirationTime <= block.timestamp) {
@@ -657,11 +497,10 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
             uint256 _balance1 = token1.balanceOf(address(this));
             uint256 _balance2 = token2.balanceOf(address(this));
 
-            emit DoubleTokenLexscrow_Expired();
+            if (_balance1 != 0) safeTransfer(address(token1), buyer, _balance1);
+            if (_balance2 != 0) safeTransfer(address(token2), seller, _balance2);
 
-            // update mappings in order to allow 'buyer' to withdraw all of '_balance1' and 'seller' to withdraw all of '_balance2', as fees are only paid upon successful execution
-            if (_balance1 != 0) amountWithdrawable1[buyer] = _balance1;
-            if (_balance2 != 0) amountWithdrawable2[seller] = _balance2;
+            emit DoubleTokenLexscrow_Expired();
         }
         return isExpired;
     }
