@@ -1,17 +1,17 @@
-//SPDX-License-Identifier: MIT
+//SPDX-License-Identifier: AGPL-3.0-only
 
 pragma solidity ^0.8.18;
 
-/**
- * this solidity file is provided as-is; no guarantee, representation or warranty is being made, express or implied,
- * as to the safety or correctness of the code or any smart contracts or other software deployed from these files.
- **/
-
-// O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O \\
-
-/////////// o=o=o=o=o TokenLexscrow o=o=o=o=o \\\\\\\\\\\
-
-// O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O \\
+/*
+*********************************
+██╗     ███████╗██╗   ██╗███████╗███████╗██████╗ ███████╗██╗    ██╗
+██║     ██╔════╝ ██║ ██╔╝██╔════╝██╔════╝██╔══██╗██╔══██║██║    ██║
+██║     █████╗    ╚██╔╝  ███████╗██║     ██████╔╝██║  ██║██║ █╗ ██║
+██║     ██╔══╝   ██╔╝██╗ ╚════██║██║     ██╔══██╗██║  ██║██║███╗██║
+███████╗███████╗██║   ██╗███████║███████╗██║  ██║███████║╚███╔███╔╝
+╚══════╝╚══════╝╚═╝   ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝ ╚══╝╚══╝ 
+                                 ***********************************
+                                                                  */
 
 /// @notice interface for ERC-20 standard token contract, including EIP2612 permit function
 interface IERC20Permit {
@@ -35,6 +35,11 @@ interface IERC20Permit {
     ) external;
 }
 
+/// @notice interface to LexscrowConditionManager or MetaLeX's regular ConditionManager
+interface ILexscrowConditionManager {
+    function checkConditions() external returns (bool);
+}
+
 /// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount
 interface IReceipt {
     function printReceipt(
@@ -42,11 +47,6 @@ interface IReceipt {
         uint256 tokenAmount,
         uint256 decimals
     ) external returns (uint256, uint256);
-}
-
-/// @notice interface to LexscrowConditionManager or MetaLeX's regular ConditionManager
-interface ILexscrowConditionManager {
-    function checkConditions() external returns (bool);
 }
 
 /// @notice Solady's SafeTransferLib 'SafeTransfer()' and 'SafeTransferFrom()'.  Extracted from library and pasted for convenience, transparency, and size minimization.
@@ -119,8 +119,7 @@ abstract contract SafeTransferLib {
 /// @author Solbase (https://github.com/Sol-DAO/solbase/blob/main/src/utils/ReentrancyGuard.sol), license copied below
 abstract contract ReentrancyGuard {
     /// @dev Equivalent to: `uint72(bytes9(keccak256("_REENTRANCY_GUARD_SLOT")))`.
-    /// 9 bytes is large enough to avoid collisions with lower slots,
-    /// but not too large to result in excessive bytecode bloat.
+    /// 9 bytes is large enough to avoid collisions with lower slots, but not too large to result in excessive bytecode bloat.
     uint256 private constant _REENTRANCY_GUARD_SLOT = 0x929eee149b4bd21268;
     error Reentrancy();
 
@@ -155,10 +154,9 @@ abstract contract ReentrancyGuard {
  * buyer and seller addresses replaceable by applicable party
  *
  * @dev adapted from TokenLocker (https://github.com/ChainLockerLLC/smart-contracts/blob/main/src/TokenLocker.sol). Contract executes and releases 'totalAmount' to 'seller' iff:
- * (1) 'buyer' and 'seller' have both called 'readyToExecute()'
- * (2) erc20.balanceOf(address(this)) - 'pendingWithdraw' >= 'totalWithFee'
- * (3) 'expirationTime' > block.timestamp
- * (4) any condition(s) are satisfied
+ * (1) erc20.balanceOf(address(this)) - 'pendingWithdraw' >= 'totalWithFee'
+ * (2) 'expirationTime' > block.timestamp
+ * (3) any condition(s) are satisfied
  *
  * otherwise, amount held in address(this) will be treated according to the code in 'checkIfExpired()' when called following expiry
  *
@@ -195,8 +193,6 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     address public seller;
     bool public deposited;
     bool public isExpired;
-    bool public buyerApproved;
-    bool public sellerApproved;
     /// @notice aggregate pending withdrawable amount, so address(this) balance checks subtract withdrawable, but not yet withdrawn, amounts
     uint256 public pendingWithdraw;
 
@@ -208,7 +204,6 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     ///
 
     event TokenLexscrow_AmountReceived(uint256 tokenAmount);
-    event TokenLexscrow_BuyerReady();
     event TokenLexscrow_BuyerUpdated(address newBuyer);
     event TokenLexscrow_DepositedAmountTransferred(
         address recipient,
@@ -228,7 +223,6 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     event TokenLexscrow_Executed(uint256 indexed effectiveTime);
     event TokenLexscrow_Expired();
     event TokenLexscrow_TotalAmountInEscrow();
-    event TokenLexscrow_SellerReady();
     event TokenLexscrow_SellerUpdated(address newSeller);
 
     ///
@@ -420,37 +414,16 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         emit TokenLexscrow_BuyerUpdated(_buyer);
     }
 
-    /// @notice seller and buyer each call this when ready to execute; other address callers will have no effect
-    /** @dev no need for an erc20.balanceOf(address(this)) check because (1) a reasonable seller will only pass 'true'
-     *** if 'totalWithFee' is in place, and (2) 'execute()' requires erc20.balanceOf(address(this)) - 'pendingWithdraw' >= 'totalWithFee';
-     *** separate conditionals in case 'buyer' == 'seller' */
-    function readyToExecute() external {
-        if (msg.sender == seller) {
-            sellerApproved = true;
-            emit TokenLexscrow_SellerReady();
-        }
-        if (msg.sender == buyer) {
-            buyerApproved = true;
-            emit TokenLexscrow_BuyerReady();
-        }
-    }
-
     /** @notice callable by any external address: checks if both buyer and seller are ready to execute, and that any applicable condition(s) is/are met, and expiration has not been met;
      *** if so, this contract executes and transfers 'totalAmount' to 'seller' and 'fee' to 'receiver' **/
     /** @dev requires entire 'totalWithFee' be held by address(this). If properly executes, pays seller and emits event with effective time of execution.
      *** Does not require amountDeposited[buyer] == erc20.balanceOf(address(this)) - pendingWithdraw to allow buyer to deposit from multiple addresses if desired; */
     function execute() external {
         if (
-            !sellerApproved ||
-            !buyerApproved ||
             erc20.balanceOf(address(this)) - pendingWithdraw < totalWithFee ||
             (address(conditionManager) != address(0) &&
                 !conditionManager.checkConditions())
         ) revert TokenLexscrow_NotReadyToExecute();
-
-        // delete approvals
-        delete sellerApproved;
-        delete buyerApproved;
 
         if (!checkIfExpired()) {
             delete deposited;
@@ -491,16 +464,11 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         // update the aggregate withdrawable balance counter
         pendingWithdraw += _amtDeposited;
 
-        // reset 'deposited' and 'buyerApproved' variables if 'seller' passed 'buyer' as '_depositor'
-        if (_depositor == buyer) {
-            delete deposited;
-            delete buyerApproved;
+        if (_depositor == buyer && openOffer) {
             // if 'openOffer', delete the 'buyer' variable so the next valid depositor will become 'buyer'
             // we do not delete 'buyer' if !openOffer, to allow the 'buyer' to choose another address via 'updateBuyer', rather than irreversibly deleting the variable
-            if (openOffer) {
-                delete buyer;
-                emit TokenLexscrow_BuyerUpdated(address(0));
-            }
+            delete buyer;
+            emit TokenLexscrow_BuyerUpdated(address(0));
         }
     }
 
@@ -537,7 +505,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
                 pendingWithdraw += _balance;
             }
 
-            if (_balance > 0) {
+            if (_balance != 0) {
                 // if non-refundable deposit and 'deposit' hasn't been reset to 'false' by
                 // a successful 'execute()', enable 'seller' to withdraw the 'deposit' amount before enabling the remainder amount (if any) to be withdrawn by buyer
                 // update mappings in order to allow 'buyer' to withdraw all of remaining '_balance' as fees are only paid upon successful execution
