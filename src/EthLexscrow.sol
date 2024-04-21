@@ -1,17 +1,22 @@
-//SPDX-License-Identifier: MIT
+//SPDX-License-Identifier: AGPL-3.0-only
 
 pragma solidity ^0.8.18;
 
-/**
- * this solidity file is provided as-is; no guarantee, representation or warranty is being made, express or implied,
- * as to the safety or correctness of the code or any smart contracts or other software deployed from these files.
- **/
+/*
+*********************************
+██╗     ███████╗██╗   ██╗███████╗███████╗██████╗ ███████╗██╗    ██╗
+██║     ██╔════╝ ██║ ██╔╝██╔════╝██╔════╝██╔══██╗██╔══██║██║    ██║
+██║     █████╗    ╚██╔╝  ███████╗██║     ██████╔╝██║  ██║██║ █╗ ██║
+██║     ██╔══╝   ██╔╝██╗ ╚════██║██║     ██╔══██╗██║  ██║██║███╗██║
+███████╗███████╗██║   ██╗███████║███████╗██║  ██║███████║╚███╔███╔╝
+╚══════╝╚══════╝╚═╝   ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝ ╚══╝╚══╝ 
+                                 ***********************************
+                                                                  */
 
-// O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O \\
-
-/////////// o=o=o=o=o EthLexscrow o=o=o=o=o \\\\\\\\\\\
-
-// O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O=o=O \\
+/// @notice interface to LexscrowConditionManager or MetaLeX's regular ConditionManager
+interface ILexscrowConditionManager {
+    function checkConditions() external returns (bool);
+}
 
 /// @notice interface to Receipt.sol, which optionally returns USD-value receipts for a provided token amount
 interface IReceipt {
@@ -20,11 +25,6 @@ interface IReceipt {
         uint256 tokenAmount,
         uint256 decimals
     ) external returns (uint256, uint256);
-}
-
-/// @notice interface to LexscrowConditionManager or MetaLeX's regular ConditionManager
-interface ILexscrowConditionManager {
-    function checkConditions() external returns (bool);
 }
 
 /// @notice Solady's SafeTransferLib 'SafeTransferETH()'.  Extracted from library and pasted for convenience, transparency, and size minimization.
@@ -52,8 +52,7 @@ abstract contract SafeTransferLib {
 /// @author Solbase (https://github.com/Sol-DAO/solbase/blob/main/src/utils/ReentrancyGuard.sol), license copied below
 abstract contract ReentrancyGuard {
     /// @dev Equivalent to: `uint72(bytes9(keccak256("_REENTRANCY_GUARD_SLOT")))`.
-    /// 9 bytes is large enough to avoid collisions with lower slots,
-    /// but not too large to result in excessive bytecode bloat.
+    /// 9 bytes is large enough to avoid collisions with lower slots, but not too large to result in excessive bytecode bloat.
     uint256 private constant _REENTRANCY_GUARD_SLOT = 0x929eee149b4bd21268;
     error Reentrancy();
 
@@ -76,22 +75,21 @@ abstract contract ReentrancyGuard {
 }
 
 /**
- * @title       o=o=o=o=o EthLexscrow o=o=o=o=o
+ * @title       EthLexscrow
  *
  * @notice non-custodial smart escrow contract for ETH-denominated transaction on Ethereum Mainnet, supporting:
  * partial or full deposit amount
  * refundable or non-refundable deposit upon expiry
  * seller-identified buyer or open offer
  * escrow expiration denominated in seconds
- * optional conditions for execution (contingent execution based on oracle-fed external data value)
+ * optional conditions for execution (contingent execution based on signatures, time, oracle-fed external data value, and more)
  * buyer and seller addresses replaceable by applicable party
  *
  * @dev adapted from EthLocker (https://github.com/ChainLockerLLC/smart-contracts/blob/main/src/EthLocker.sol)
  * executes and releases 'totalAmount' to 'seller' iff:
- * (1) 'buyer' and 'seller' have both called 'readyToExecute()'
- * (2) address(this).balance - 'pendingWithdraw' >= 'totalAmount'
- * (3) 'expirationTime' > block.timestamp
- * (4) any condition(s) are satisfied
+ * (1) address(this).balance - 'pendingWithdraw' >= 'totalAmount'
+ * (2) 'expirationTime' > block.timestamp
+ * (3) any condition(s) are satisfied
  *
  * otherwise, amount held in address(this) will be treated according to the code in 'checkIfExpired()' when called following expiry
  *
@@ -125,8 +123,6 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
 
     bool public deposited;
     bool public isExpired;
-    bool public buyerApproved;
-    bool public sellerApproved;
     address payable public buyer;
     address payable public seller;
     /// @notice aggregate pending withdrawable amount, so address(this) balance checks subtract withdrawable, but not yet withdrawn, amounts
@@ -140,7 +136,6 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     ///
 
     event EthLexscrow_AmountReceived(uint256 weiAmount);
-    event EthLexscrow_BuyerReady();
     event EthLexscrow_BuyerUpdated(address newBuyer);
     event EthLexscrow_DepositedAmountTransferred(
         address recipient,
@@ -159,7 +154,6 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     event EthLexscrow_Expired();
     event EthLexscrow_Executed(uint256 indexed effectiveTime);
     event EthLexscrow_TotalAmountInEscrow();
-    event EthLexscrow_SellerReady();
     event EthLexscrow_SellerUpdated(address newSeller);
 
     ///
@@ -278,38 +272,17 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         emit EthLexscrow_BuyerUpdated(_buyer);
     }
 
-    /// @notice seller and buyer each call this when ready to execute; other address callers will have no effect
-    /// @dev no need for an address(this).balance check because (1) a reasonable seller will only pass 'true'
-    /// if 'totalWithFee' is in place, and (2) 'execute()' requires the locked balance >= 'totalWithFee'
-    /// separate conditionals in case 'buyer' == 'seller'
-    function readyToExecute() external {
-        if (msg.sender == seller) {
-            sellerApproved = true;
-            emit EthLexscrow_SellerReady();
-        }
-        if (msg.sender == buyer) {
-            buyerApproved = true;
-            emit EthLexscrow_BuyerReady();
-        }
-    }
-
-    /** @notice callable by any external address: checks if both buyer and seller are ready to execute and expiration has not been met;
+    /** @notice callable by any external address: checks if correct balance is in this address and expiration has not been met;
      *** if so, this contract executes and transfers 'totalAmount' to 'seller' and 'fee' to 'receiver' **/
     /** @dev requires entire 'totalWithFee' be held by address(this). If properly executes, pays seller and receiver and emits event with effective time of execution.
      *** Does not require amountDeposited[buyer] == address(this).balance to allow buyer to deposit from multiple addresses if desired */
     function execute() external {
         uint256 _lockedBalance = address(this).balance - pendingWithdraw;
         if (
-            !sellerApproved ||
-            !buyerApproved ||
             _lockedBalance < totalWithFee ||
             (address(conditionManager) != address(0) &&
                 !conditionManager.checkConditions())
         ) revert EthLexscrow_NotReadyToExecute();
-
-        // delete approvals
-        delete sellerApproved;
-        delete buyerApproved;
 
         if (!checkIfExpired()) {
             delete deposited;
@@ -347,16 +320,11 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         // update the aggregate withdrawable balance counter
         pendingWithdraw += _amtDeposited;
 
-        // reset 'deposited' and 'buyerApproved' variables if 'seller' passed 'buyer' as '_depositor'
-        if (_depositor == buyer) {
-            delete deposited;
-            delete buyerApproved;
+        if (_depositor == buyer && openOffer) {
             // if 'openOffer', delete the 'buyer' variable so the next valid depositor will become 'buyer'
             // we do not delete 'buyer' if !openOffer, to allow the 'buyer' to choose another address via 'updateBuyer', rather than irreversibly deleting the variable
-            if (openOffer) {
-                delete buyer;
-                emit EthLexscrow_BuyerUpdated(address(0));
-            }
+            delete buyer;
+            emit EthLexscrow_BuyerUpdated(address(0));
         }
     }
 
@@ -393,7 +361,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
                 pendingWithdraw += _balance;
             }
 
-            if (_balance > 0) {
+            if (_balance != 0) {
                 // if non-refundable deposit and 'deposit' hasn't been reset to 'false' by a successful 'execute()', enable 'seller' to withdraw the 'deposit' amount
                 // before enabling the remainder amount (if any) to be withdrawn by buyer, as fee is only paid upon successful execution
                 if (!refundable && _isDeposited) {
