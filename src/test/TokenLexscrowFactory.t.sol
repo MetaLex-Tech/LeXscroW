@@ -92,7 +92,14 @@ contract TokenLexscrowFactoryTest is Test {
         vm.assume(_decimals > 0);
         token = new ERC20("token 1", "ONE", _decimals);
 
-        if (_totalAmount == 0 || _deposit > _totalAmount || _expirationTime <= block.timestamp) vm.expectRevert();
+        if (
+            _totalAmount == 0 ||
+            _deposit > _totalAmount ||
+            _expirationTime <= block.timestamp ||
+            _seller == address(0) ||
+            address(token) == address(0) ||
+            (!_openOffer && _buyer == address(0))
+        ) vm.expectRevert();
         // condition checks in TokenLexscrowFactory.deployTokenLexscrow() and TokenLexscrow's constructor
         // post-deployment contract tests undertaken in TokenLexscrow.t.sol
         factoryTest.deployTokenLexscrow(
