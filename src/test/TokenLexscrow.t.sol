@@ -1,14 +1,5 @@
 //SPDX-License-Identifier: AGPL-3.0-only
 
-/**
- * this solidity file is provided as-is; no guarantee, representation or warranty is being made, express or implied,
- * as to the safety or correctness of the code or any smart contracts or other software deployed from these files.
- * this solidity file is NOT AUDITED; there can be no assurance it will work as intended,
- * and users may experience delays, failures, errors, omissions or loss of transmitted information or value.
- *
- * Any users, developers, or adapters of these files should proceed with caution and use at their own risk.
- **/
-
 pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
@@ -465,33 +456,6 @@ contract TokenLexscrowTest is Test {
         }
     }
 
-    function testReadyToClose(address _caller) external {
-        // if caller isn't seller or buyer and the sellerApproved and buyerApproved bools haven't already been changed, any other address
-        // calling this function should do nothing and the bools should not update
-        if (
-            _caller != escrowTest.seller() &&
-            _caller != escrowTest.buyer() &&
-            !escrowTest.sellerApproved() &&
-            !escrowTest.buyerApproved()
-        ) {
-            vm.startPrank(_caller);
-            escrowTest.readyToExecute();
-            assertTrue(!escrowTest.sellerApproved());
-            assertTrue(!escrowTest.buyerApproved());
-            vm.stopPrank();
-        }
-
-        //ensure seller and buyer can update their approved booleans
-        vm.startPrank(escrowTest.seller());
-        escrowTest.readyToExecute();
-        assertTrue(escrowTest.sellerApproved());
-        vm.stopPrank();
-        vm.startPrank(escrowTest.buyer());
-        escrowTest.readyToExecute();
-        assertTrue(escrowTest.buyerApproved());
-        vm.stopPrank();
-    }
-
     // fuzz test for different timestamps
     function testCheckIfExpired(uint256 timestamp) external {
         // assume 'totalWithFee' is in escrow
@@ -602,11 +566,12 @@ contract TokenLexscrowTest is Test {
         openEscrowTest.rejectDepositor(_depositor);
         if (!_reverted || _newContract != address(this)) {
             if (_wasDeposited && _success && _depositor != address(0)) {
-                assertEq(
-                    address(0),
-                    openEscrowTest.buyer(),
-                    "buyer address did not delete"
-                );
+                if (openEscrowTest.openOffer())
+                    assertEq(
+                        address(0),
+                        openEscrowTest.buyer(),
+                        "buyer address did not delete"
+                    );
                 assertGt(
                     openEscrowTest.amountWithdrawable(_depositor),
                     _amountWithdrawableBefore,
@@ -698,8 +663,6 @@ contract TokenLexscrowTest is Test {
         bool _approved;
 
         if (
-            !fuzzEscrowTest.sellerApproved() ||
-            !fuzzEscrowTest.buyerApproved() ||
             _preBalance != fuzzEscrowTest.totalWithFee() ||
             _deposit > _totalAmount ||
             fuzzEscrowTest.expirationTime() <= block.timestamp
@@ -708,17 +671,7 @@ contract TokenLexscrowTest is Test {
 
         fuzzEscrowTest.execute();
 
-        if (!_approved && !fuzzEscrowTest.buyerApproved()) {
-            vm.prank(buyer);
-            fuzzEscrowTest.readyToExecute();
-            vm.stopPrank();
-        }
-        if (!_approved && !fuzzEscrowTest.sellerApproved()) {
-            vm.prank(seller);
-            fuzzEscrowTest.readyToExecute();
-            vm.stopPrank();
-        }
-        // try again after intentionally approving; will also revert if already _approved (already executed once and balance not reloaded)
+        // will also revert if already _approved (already executed once and balance not reloaded)
         if (
             _approved ||
             _preBalance != fuzzEscrowTest.totalWithFee() ||
@@ -728,15 +681,11 @@ contract TokenLexscrowTest is Test {
         else _approved = true;
         fuzzEscrowTest.execute();
 
-        // both approval booleans should have been deleted regardless of whether the escrow expired
-        assertTrue(!fuzzEscrowTest.sellerApproved());
-        assertTrue(!fuzzEscrowTest.buyerApproved());
-
         uint256 _postBalance = testToken.balanceOf(fuzzEscrowTestAddr) -
             (fuzzEscrowTest.amountWithdrawable(buyer) +
                 fuzzEscrowTest.amountWithdrawable(seller));
 
-        // if both seller and buyer approved closing before the execute() call and expiry hasn't been reached, seller should be paid the totalAmount
+        // if expiry hasn't been reached, seller should be paid the totalAmount
         if (_approved && !fuzzEscrowTest.isExpired()) {
             // seller should have received totalAmount
             assertGt(
@@ -831,12 +780,6 @@ contract TokenLexscrowTest is Test {
             _amounts
         );
 
-        vm.prank(buyer);
-        conditionEscrowTest.readyToExecute();
-        vm.stopPrank();
-        vm.prank(seller);
-        conditionEscrowTest.readyToExecute();
-        vm.stopPrank();
         testToken.mintToken(address(conditionEscrowTest), totalWithFee);
 
         // we just subtract buyer and seller's amountWithdrawable, if any (rather than mocking 'pendingWithdraw')
@@ -856,17 +799,13 @@ contract TokenLexscrowTest is Test {
         );
         bool _approved;
 
-        if (
-            !conditionEscrowTest.sellerApproved() ||
-            !conditionEscrowTest.buyerApproved() ||
-            _preBalance != conditionEscrowTest.totalWithFee() ||
-            !callResult
-        ) vm.expectRevert();
+        if (_preBalance != conditionEscrowTest.totalWithFee() || !callResult)
+            vm.expectRevert();
         else _approved = true;
 
         conditionEscrowTest.execute();
 
-        // if both seller and buyer approved closing before the execute() call and expiry hasn't been reached, seller should be paid the totalAmount
+        // if expiry hasn't been reached, seller should be paid the totalAmount
         if (_approved && !conditionEscrowTest.isExpired()) {
             // seller should have received totalAmount
             assertGt(
