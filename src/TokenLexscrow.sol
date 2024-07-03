@@ -468,6 +468,8 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
             // if 'openOffer', delete the 'buyer' variable so the next valid depositor will become 'buyer'
             // we do not delete 'buyer' if !openOffer, to allow the 'buyer' to choose another address via 'updateBuyer', rather than irreversibly deleting the variable
             delete buyer;
+            // the '_depositor' must have deposited at least 'deposit' since this is an open offer, so reset the 'deposited' variable as the deposit is now pending withdrawal
+            delete deposited;
             emit TokenLexscrow_BuyerUpdated(address(0));
         }
     }
