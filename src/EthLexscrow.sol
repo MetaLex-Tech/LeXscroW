@@ -320,10 +320,15 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         // update the aggregate withdrawable balance counter
         pendingWithdraw += _amtDeposited;
 
+        // if this depositor rejection causes the non-pendingWithdraw amount held in this contract to fall below the 'deposit', delete 'deposited'
+        if (address(this).balance - pendingWithdraw < deposit) delete deposited;
+
         if (_depositor == buyer && openOffer) {
             // if 'openOffer', delete the 'buyer' variable so the next valid depositor will become 'buyer'
             // we do not delete 'buyer' if !openOffer, to allow the 'buyer' to choose another address via 'updateBuyer', rather than irreversibly deleting the variable
             delete buyer;
+            // the '_depositor' must have deposited at least 'deposit' since this is an open offer, so reset the 'deposited' variable as the deposit is now pending withdrawal
+            delete deposited;
             emit EthLexscrow_BuyerUpdated(address(0));
         }
     }
