@@ -367,7 +367,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
                 if (!refundable && _isDeposited) {
                     amountWithdrawable[seller] = deposit;
                     amountWithdrawable[buyer] = _balance - deposit;
-                } else amountWithdrawable[buyer] = _balance;
+                } else amountWithdrawable[buyer] += _balance;
             }
         }
         return isExpired;
