@@ -213,6 +213,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     error DoubleTokenLexscrow_NotSeller();
     error DoubleTokenLexscrow_NonERC20Contract();
     error DoubleTokenLexscrow_NotReadyToExecute();
+    error DoubleTokenLexscrow_SameTokenContracts();
     error DoubleTokenLexscrow_ZeroAmount();
     error DoubleTokenLexscrow_ZeroAddress();
 
@@ -226,7 +227,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _seller the seller's address, depositor of the 'totalAmount2' + 'fee2' (in token2) and recipient of the 'totalAmount1' (in token1) if the contract executes. Automatically updated by successful 'depositTokensWithPermit()' or 'depositTokens()' if 'openOffer'
     /// @param _buyer the buyer's address, depositor of the 'totalAmount1' + 'fee1' (in token1) and recipient of the 'totalAmount2' (in token2) if the contract executes. Automatically updated by successful 'depositTokensWithPermit()' or 'depositTokens()' if 'openOffer'
     /// @param _tokenContract1 contract address for the ERC20 token used in this DoubleTokenLexscrow as 'token1'
-    /// @param _tokenContract2 contract address for the ERC20 token used in this DoubleTokenLexscrow as 'token2'
+    /// @param _tokenContract2 contract address for the ERC20 token used in this DoubleTokenLexscrow as 'token2'; must be different than `_tokenContract1`
     /// @param _conditionManager contract address for ConditionManager.sol
     /// @param _receipt contract address for Receipt.sol contract
     /// @param _amounts struct containing the total amounts and fees as follows:
@@ -248,6 +249,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     ) payable {
         if (_amounts.totalAmount1 == 0 || _amounts.totalAmount2 == 0) revert DoubleTokenLexscrow_ZeroAmount();
         if (_expirationTime <= block.timestamp) revert DoubleTokenLexscrow_IsExpired();
+        if (_tokenContract1 == _tokenContract2) revert DoubleTokenLexscrow_SameTokenContracts();
 
         // quick staticcall condition check that each of '_tokenContract1' and '_tokenContract2' is at least partially ERC-20 compliant by checking if balanceOf function exists
         (bool successBalanceOf1, bytes memory dataBalanceOf1) = _tokenContract1.staticcall(
