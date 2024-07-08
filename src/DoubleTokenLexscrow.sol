@@ -130,13 +130,14 @@ abstract contract ReentrancyGuard {
 /**
  * @title       DoubleTokenLexscrow
  *
- * @notice      Non-custodial bilateral smart escrow contract using ERC20 tokens, supporting:
+ * @notice      Non-custodial bilateral smart escrow contract for non-rebasing ERC20 tokens, supporting:
  *      deposit tokens via approve+transfer or EIP2612 permit signature
  *      identified parties or open offer (party that deposits totalAmount1 of token1 becomes 'buyer', and vice versa)
  *      escrow expiration denominated in seconds
  *      optional conditions for execution (contingent execution based on oracle-fed external data value, signatures, etc.)
  *      buyer and seller addresses replaceable by applicable party
  *      no separate approval is necessary as both sides must deposit value (which serves as signalled approval to execute)
+ *      mutual termination option, which returns deposited tokens to applicable parties
  *      automatically refunded to buyer and seller, as applicable, at expiry if not executed
  *      if executed, re-usable by parties until expiration time
  *
@@ -146,7 +147,7 @@ abstract contract ReentrancyGuard {
  *      (3) 'expirationTime' > block.timestamp
  *      (4) if there is/are condition(s), such condition(s) is/are satisfied
  *
- *      Otherwise, deposited amounts are returned to the respective parties if this contract expires.
+ *      Otherwise, deposited amounts are returned to the respective parties if this contract expires, or if both parties elect to terminate early.
  *
  *      Variables are public for interface friendliness and enabling getters.
  **/
@@ -179,6 +180,8 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     address public seller;
     bool public isExpired;
 
+    mapping(address => bool) public terminationConsent;
+
     ///
     /// EVENTS
     ///
@@ -198,6 +201,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     );
     event DoubleTokenLexscrow_Executed(uint256 indexed effectiveTime, address seller, address buyer, address receiver);
     event DoubleTokenLexscrow_Expired();
+    event DoubleTokenLexscrow_Terminated();
     event DoubleTokenLexscrow_TotalAmountInEscrow(address depositor, address token);
     event DoubleTokenLexscrow_SellerUpdated(address newSeller);
 
@@ -210,6 +214,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     error DoubleTokenLexscrow_IsExpired();
     error DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
     error DoubleTokenLexscrow_NotBuyer();
+    error DoubleTokenLexscrow_NotParty();
     error DoubleTokenLexscrow_NotSeller();
     error DoubleTokenLexscrow_NonERC20Contract();
     error DoubleTokenLexscrow_NotReadyToExecute();
@@ -490,13 +495,36 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         else return receipt.printReceipt(tokenContract2, _tokenAmount, token2.decimals());
     }
 
+    /// @notice enables mutual early termination and return of deposited tokens, if both `buyer` and `seller` pass `true` to this function
+    /// @dev if both `buyer` and `seller` pass `true` to this function, the `isExpired` boolean will be set to true, and this function will call `checkIfExpired`, returning any deposited tokens
+    /// if the parties effectively terminate early, this contract will not be reusable.
+    /// @param _electToTerminate whether the caller elects to terminate this LeXscrow early (`true`); this election is revocable by such caller passing `false`
+    function electToTerminate(bool _electToTerminate) external {
+        if (msg.sender != buyer && msg.sender != seller) revert DoubleTokenLexscrow_NotParty();
+        if (isExpired) revert DoubleTokenLexscrow_IsExpired();
+
+        terminationConsent[msg.sender] = _electToTerminate;
+
+        // if both parties have elected to terminate early, update `isExpired` to true and mimics the logic in `checkIfExpired` to enable deposit returns, effectively accelerating the expiration
+        if (terminationConsent[buyer] && terminationConsent[seller]) {
+            isExpired = true;
+            uint256 _balance1 = token1.balanceOf(address(this));
+            uint256 _balance2 = token2.balanceOf(address(this));
+
+            if (_balance1 != 0) safeTransfer(address(token1), buyer, _balance1);
+            if (_balance2 != 0) safeTransfer(address(token2), seller, _balance2);
+
+            emit DoubleTokenLexscrow_Terminated();
+        }
+    }
+
     /// @notice check if expired, and if so, handle refundability to the identified 'buyer' and 'seller' at such time by returning their applicable tokens
     /// @dev if expired, update isExpired boolean and safeTransfer 'buyer' all of 'token1' and 'seller' all of 'token2', as fees are only paid upon successful execution;
     /// while the 'buyer' and'seller' may not have been the depositors, they are the best options for deposit return at the time of calling, especially considering
     /// either may replace their own addresses at any time for any reason via 'updateBuyer' and 'updateSeller'
     /// @return isExpired
     function checkIfExpired() public nonReentrant returns (bool) {
-        if (expirationTime <= block.timestamp) {
+        if (expirationTime <= block.timestamp && !isExpired) {
             isExpired = true;
             uint256 _balance1 = token1.balanceOf(address(this));
             uint256 _balance2 = token2.balanceOf(address(this));
