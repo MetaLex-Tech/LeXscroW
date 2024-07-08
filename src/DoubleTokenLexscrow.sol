@@ -425,7 +425,8 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current 'seller' to designate a new seller address
     /// @param _seller new address of seller; conditional protects against passing address (0)
     function updateSeller(address _seller) external {
-        if (msg.sender != seller) revert DoubleTokenLexscrow_NotSeller();
+        if (msg.sender != seller || _seller == seller) revert DoubleTokenLexscrow_NotSeller();
+        if (_seller == buyer) revert DoubleTokenLexscrow_NotBuyer();
         if (_seller == address(0)) revert DoubleTokenLexscrow_ZeroAddress();
 
         seller = _seller;
@@ -435,7 +436,8 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current 'buyer' to designate a new buyer address
     /// @param _buyer new address of buyer; conditional protects against passing address (0)
     function updateBuyer(address _buyer) external {
-        if (msg.sender != buyer) revert DoubleTokenLexscrow_NotBuyer();
+        if (msg.sender != buyer || _buyer == buyer) revert DoubleTokenLexscrow_NotBuyer();
+        if (_buyer == seller) revert DoubleTokenLexscrow_NotSeller();
         if (_buyer == address(0)) revert DoubleTokenLexscrow_ZeroAddress();
 
         buyer = _buyer;
