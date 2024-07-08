@@ -82,13 +82,20 @@ contract EthLexscrowTest is Test {
     function testUpdateBuyer(address payable _addr) public {
         vm.startPrank(escrowTest.buyer());
         uint256 _amtDeposited = escrowTest.amountDeposited(buyer);
+        bool _reverted;
+        if (_addr == escrowTest.buyer() || _addr == escrowTest.seller()) {
+            vm.expectRevert();
+            _reverted = true;
+        }
         escrowTest.updateBuyer(_addr);
-        assertEq(escrowTest.buyer(), _addr, "buyer address did not update");
-        assertEq(
-            escrowTest.amountDeposited(_addr),
-            _amtDeposited,
-            "amountDeposited mapping did not update"
-        );
+        if (!_reverted) {
+            assertEq(escrowTest.buyer(), _addr, "buyer address did not update");
+            assertEq(
+                escrowTest.amountDeposited(_addr),
+                _amtDeposited,
+                "amountDeposited mapping did not update"
+            );
+        }
     }
 
     function testReceive(uint256 _amount) public payable {
@@ -241,6 +248,10 @@ contract EthLexscrowTest is Test {
                         openEscrowTest.buyer(),
                         "buyer address did not delete"
                     );
+                assertTrue(
+                    !openEscrowTest.deposited(),
+                    "deposited variable did not delete"
+                );
                 assertGt(
                     openEscrowTest.amountWithdrawable(_depositor),
                     _amountWithdrawableBefore,
