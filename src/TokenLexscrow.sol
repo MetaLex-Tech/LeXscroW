@@ -329,7 +329,9 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         bytes32 r,
         bytes32 s
     ) external nonReentrant {
-        uint256 _balance = erc20.balanceOf(address(this)) + _amount - pendingWithdraw;
+        uint256 _balance = erc20.balanceOf(address(this)) +
+            _amount -
+            pendingWithdraw;
         if (_balance > totalWithFee) {
             uint256 _surplus = _balance - totalWithFee;
             // either reduce '_amount' by the surplus, or revert if '_amount' is less than the surplus
@@ -337,8 +339,10 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
             else revert TokenLexscrow_BalanceExceedsTotalAmount();
         }
         if (!openOffer && _depositor != buyer) revert TokenLexscrow_NotBuyer();
-        if (_deadline < block.timestamp || expirationTime <= block.timestamp) revert TokenLexscrow_IsExpired();
-        if (openOffer && _balance < totalWithFee) revert TokenLexscrow_MustDepositTotalAmount();
+        if (_deadline < block.timestamp || expirationTime <= block.timestamp)
+            revert TokenLexscrow_IsExpired();
+        if (openOffer && _balance < totalWithFee)
+            revert TokenLexscrow_MustDepositTotalAmount();
 
         if (_balance >= deposit && !deposited) {
             // if this TokenLexscrow is an open offer and was not yet accepted (thus '!deposited'), make depositing address the 'buyer' and update 'deposited' to true
@@ -364,7 +368,9 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
      ** records amount deposited by msg.sender in case of refundability or where 'seller' rejects a 'buyer' and buyer's deposited amount is to be returned  */
     /// @param _amount: amount of tokens deposited. If 'openOffer', '_amount' must == 'totalWithFee'; will be reduced by this function if user attempts to deposit an amount that will result in too high of a balance
     function depositTokens(uint256 _amount) external nonReentrant {
-        uint256 _balance = erc20.balanceOf(address(this)) + _amount - pendingWithdraw;
+        uint256 _balance = erc20.balanceOf(address(this)) +
+            _amount -
+            pendingWithdraw;
         if (_balance > totalWithFee) {
             uint256 _surplus = _balance - totalWithFee;
             // either reduce '_amount' by the surplus, or revert if '_amount' is less than the surplus
@@ -375,7 +381,8 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         if (erc20.allowance(msg.sender, address(this)) < _amount)
             revert TokenLexscrow_AmountNotApprovedForTransferFrom();
         if (expirationTime <= block.timestamp) revert TokenLexscrow_IsExpired();
-        if (openOffer && _balance < totalWithFee) revert TokenLexscrow_MustDepositTotalAmount();
+        if (openOffer && _balance < totalWithFee)
+            revert TokenLexscrow_MustDepositTotalAmount();
 
         if (_balance >= deposit && !deposited) {
             // if this TokenLexscrow is an open offer and was not yet accepted (thus '!deposited'), make depositing address the 'buyer' and update 'deposited' to true
@@ -396,7 +403,9 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current seller to designate a new recipient address
     /// @param _seller: new recipient address of seller
     function updateSeller(address _seller) external {
-        if (msg.sender != seller) revert TokenLexscrow_NotSeller();
+        if (msg.sender != seller || _seller == seller)
+            revert TokenLexscrow_NotSeller();
+        if (_seller == buyer) revert TokenLexscrow_NotBuyer();
 
         seller = _seller;
         emit TokenLexscrow_SellerUpdated(_seller);
@@ -405,7 +414,9 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current 'buyer' to designate a new buyer address
     /// @param _buyer: new address of buyer
     function updateBuyer(address _buyer) external {
-        if (msg.sender != buyer) revert TokenLexscrow_NotBuyer();
+        if (msg.sender != buyer || _buyer == buyer)
+            revert TokenLexscrow_NotBuyer();
+        if (_buyer == seller) revert TokenLexscrow_NotSeller();
 
         // transfer 'amountDeposited[buyer]' to the new '_buyer', delete the existing buyer's 'amountDeposited', and update the 'buyer' state variable
         amountDeposited[_buyer] += amountDeposited[buyer];
@@ -466,7 +477,8 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         pendingWithdraw += _amtDeposited;
 
         // if this depositor rejection causes the non-pendingWithdraw amount held in this contract to fall below the 'deposit', delete 'deposited'
-        if (erc20.balanceOf(address(this)) - pendingWithdraw < deposit) delete deposited;
+        if (erc20.balanceOf(address(this)) - pendingWithdraw < deposit)
+            delete deposited;
 
         if (_depositor == buyer && openOffer) {
             // if 'openOffer', delete the 'buyer' variable so the next valid depositor will become 'buyer'

@@ -326,20 +326,37 @@ contract TokenLexscrowTest is Test {
 
     function testUpdateSeller(address _addr) public {
         vm.startPrank(escrowTest.seller());
+        bool _reverted;
+        if (_addr == escrowTest.buyer() || _addr == escrowTest.seller()) {
+            vm.expectRevert();
+            _reverted = true;
+        }
         escrowTest.updateSeller(_addr);
-        assertEq(escrowTest.seller(), _addr, "seller address did not update");
+        if (!_reverted)
+            assertEq(
+                escrowTest.seller(),
+                _addr,
+                "seller address did not update"
+            );
     }
 
     function testUpdateBuyer(address _addr) public {
         vm.startPrank(escrowTest.buyer());
         uint256 _amtDeposited = escrowTest.amountDeposited(buyer);
+        bool _reverted;
+        if (_addr == escrowTest.buyer() || _addr == escrowTest.seller()) {
+            vm.expectRevert();
+            _reverted = true;
+        }
         escrowTest.updateBuyer(_addr);
-        assertEq(escrowTest.buyer(), _addr, "buyer address did not update");
-        assertEq(
-            escrowTest.amountDeposited(_addr),
-            _amtDeposited,
-            "amountDeposited mapping did not update"
-        );
+        if (!_reverted) {
+            assertEq(escrowTest.buyer(), _addr, "buyer address did not update");
+            assertEq(
+                escrowTest.amountDeposited(_addr),
+                _amtDeposited,
+                "amountDeposited mapping did not update"
+            );
+        }
     }
 
     function testDepositTokensWithPermit(
@@ -572,6 +589,10 @@ contract TokenLexscrowTest is Test {
                         openEscrowTest.buyer(),
                         "buyer address did not delete"
                     );
+                assertTrue(
+                    !openEscrowTest.deposited(),
+                    "deposited variable did not delete"
+                );
                 assertGt(
                     openEscrowTest.amountWithdrawable(_depositor),
                     _amountWithdrawableBefore,

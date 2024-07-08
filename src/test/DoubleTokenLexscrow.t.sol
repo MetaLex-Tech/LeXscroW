@@ -307,16 +307,24 @@ contract DoubleTokenLexscrowTest is Test {
 
     function testUpdateSeller(address _addr) public {
         vm.startPrank(escrowTest.seller());
-        if (_addr == address(0)) vm.expectRevert();
+        bool _reverted;
+        if (_addr == address(0) || _addr == escrowTest.seller() || _addr == escrowTest.buyer()) {
+            _reverted = true;
+            vm.expectRevert();
+        }
         escrowTest.updateSeller(_addr);
-        if (_addr != address(0)) assertEq(escrowTest.seller(), _addr, "seller address did not update");
+        if (!_reverted) assertEq(escrowTest.seller(), _addr, "seller address did not update");
     }
 
     function testUpdateBuyer(address _addr) public {
         vm.startPrank(escrowTest.buyer());
-        if (_addr == address(0)) vm.expectRevert();
+        bool _reverted;
+        if (_addr == address(0) || _addr == escrowTest.seller() || _addr == escrowTest.buyer()) {
+            _reverted = true;
+            vm.expectRevert();
+        }
         escrowTest.updateBuyer(_addr);
-        if (_addr != address(0)) assertEq(escrowTest.buyer(), _addr, "buyer address did not update");
+        if (!_reverted) assertEq(escrowTest.buyer(), _addr, "buyer address did not update");
     }
 
     function testBuyerDepositTokensWithPermit(bool _token1Deposit, uint256 _amount, uint256 _deadline) public {

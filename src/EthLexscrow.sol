@@ -253,7 +253,9 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current seller to designate a new recipient address
     /// @param _seller: new recipient address of seller
     function updateSeller(address payable _seller) external {
-        if (msg.sender != seller) revert EthLexscrow_NotSeller();
+        if (msg.sender != seller || _seller == seller)
+            revert EthLexscrow_NotSeller();
+        if (_seller == buyer) revert EthLexscrow_NotBuyer();
 
         seller = _seller;
         emit EthLexscrow_SellerUpdated(_seller);
@@ -262,7 +264,9 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current 'buyer' to designate a new buyer address
     /// @param _buyer: new address of buyer
     function updateBuyer(address payable _buyer) external {
-        if (msg.sender != buyer) revert EthLexscrow_NotBuyer();
+        if (msg.sender != buyer || _buyer == buyer)
+            revert EthLexscrow_NotBuyer();
+        if (_buyer == seller) revert EthLexscrow_NotSeller();
 
         // transfer 'amountDeposited[buyer]' to the new '_buyer', delete the existing buyer's 'amountDeposited', and update the 'buyer' state variable
         amountDeposited[_buyer] += amountDeposited[buyer];
