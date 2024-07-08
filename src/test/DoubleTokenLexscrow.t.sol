@@ -458,12 +458,13 @@ contract DoubleTokenLexscrowTest is Test {
         uint256 _preBalance2 = testToken2.balanceOf(escrowTestAddr);
         uint256 _preBuyerBalance = testToken.balanceOf(buyer);
         uint256 _preSellerBalance = testToken2.balanceOf(seller);
+        bool _isAlreadyExpired = escrowTest.isExpired();
 
         vm.warp(timestamp);
         escrowTest.checkIfExpired();
         // ensure, if timestamp is past expiration time and thus escrow is expired, boolean is updated and tokens are returned to the applicable parties
         // else, isExpired() should be false and balances should be unchanged
-        if (escrowTest.expirationTime() <= timestamp) {
+        if (escrowTest.expirationTime() <= timestamp && !_isAlreadyExpired) {
             assertTrue(escrowTest.isExpired());
 
             if (_preBalance != 0) {
