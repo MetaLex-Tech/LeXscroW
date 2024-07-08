@@ -253,7 +253,9 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current seller to designate a new recipient address
     /// @param _seller: new recipient address of seller
     function updateSeller(address payable _seller) external {
-        if (msg.sender != seller) revert EthLexscrow_NotSeller();
+        if (msg.sender != seller || _seller == seller)
+            revert EthLexscrow_NotSeller();
+        if (_seller == buyer) revert EthLexscrow_NotBuyer();
 
         seller = _seller;
         emit EthLexscrow_SellerUpdated(_seller);
