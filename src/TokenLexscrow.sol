@@ -314,7 +314,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice deposit value to 'address(this)' by permitting address(this) to safeTransferFrom '_amount' of tokens from '_depositor'
     /** @dev max '_amount' limit of 'totalWithFee', and if 'totalWithFee' is already held or escrow has expired, revert. Updates boolean and emits event when 'deposit' reached
      ** also updates 'buyer' to msg.sender if true 'openOffer' and false 'deposited', and
-     ** records amount deposited by msg.sender in case of refundability or where 'seller' rejects a 'buyer' and buyer's deposited amount is to be returned  */
+     ** records amount deposited by msg.sender (assigned to `buyer`) in case of refundability or where 'seller' rejects a 'buyer' and buyer's deposited amount is to be returned  */
     /// @param _depositor: depositor of the '_amount' of tokens, often msg.sender/originating EOA, but must == 'buyer' if this is not an open offer (!openOffer)
     /// @param _amount: amount of tokens deposited. If 'openOffer', '_amount' must == 'totalWithFee'; will be reduced by this function if user attempts to deposit an amount that will result in too high of a balance
     /// @param _deadline: deadline for usage of the permit approval signature
@@ -355,17 +355,20 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         }
         if (_balance == totalWithFee) emit TokenLexscrow_TotalAmountInEscrow();
 
-        emit TokenLexscrow_AmountReceived(_amount);
-        amountDeposited[_depositor] += _amount;
+        // if !openOffer, credit the `buyer`'s `amountDeposited` to prevent residual amounts upon execution, as the buyer receives the benefit of the deposit ultimately;
+        // alternatively, if openOffer, the `_amount` must come from the newly assigned `buyer` anyway
+        amountDeposited[buyer] += _amount;
+
         erc20.permit(_depositor, address(this), _amount, _deadline, v, r, s);
         safeTransferFrom(tokenContract, _depositor, address(this), _amount);
+        emit TokenLexscrow_AmountReceived(_amount);
     }
 
     /// @notice deposit value to 'address(this)' via safeTransferFrom '_amount' of tokens from msg.sender; provided msg.sender has approved address(this) to transferFrom such 'amount'
     /** @dev msg.sender must have erc20.approve(address(this), _amount) prior to calling this function
      ** max '_amount' limit of 'totalWithFee', and if 'totalWithFee' is already held or this TokenLexscrow has expired, revert. Updates boolean and emits event when 'deposit' reached
      ** also updates 'buyer' to msg.sender if true 'openOffer' and false 'deposited', and
-     ** records amount deposited by msg.sender in case of refundability or where 'seller' rejects a 'buyer' and buyer's deposited amount is to be returned  */
+     ** records amount deposited by msg.sender (assigned to `buyer`) in case of refundability or where 'seller' rejects a 'buyer' and buyer's deposited amount is to be returned  */
     /// @param _amount: amount of tokens deposited. If 'openOffer', '_amount' must == 'totalWithFee'; will be reduced by this function if user attempts to deposit an amount that will result in too high of a balance
     function depositTokens(uint256 _amount) external nonReentrant {
         uint256 _balance = erc20.balanceOf(address(this)) +
@@ -395,9 +398,11 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         }
         if (_balance == totalWithFee) emit TokenLexscrow_TotalAmountInEscrow();
 
-        emit TokenLexscrow_AmountReceived(_amount);
-        amountDeposited[msg.sender] += _amount;
+        // if !openOffer, credit the `buyer`'s `amountDeposited` to prevent residual amounts upon execution, as the buyer receives the benefit of the deposit ultimately;
+        // alternatively, if openOffer, the `_amount` must come from the newly assigned `buyer` anyway
+        amountDeposited[buyer] += _amount;
         safeTransferFrom(tokenContract, msg.sender, address(this), _amount);
+        emit TokenLexscrow_AmountReceived(_amount);
     }
 
     /// @notice for the current seller to designate a new recipient address

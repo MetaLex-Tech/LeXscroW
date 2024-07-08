@@ -109,7 +109,7 @@ contract EthLexscrowTest is Test {
     }
 
     function testReceive(uint256 _amount) public payable {
-        uint256 _preBalance = escrowTest.amountDeposited(address(this));
+        uint256 _preBalance = escrowTest.amountDeposited(escrowTest.buyer());
         bool _success;
         //receive() will only be invoked if _amount > 0
         vm.assume(_amount > 0);
@@ -137,7 +137,7 @@ contract EthLexscrowTest is Test {
         }
         if (_success && _amount <= escrowTest.totalWithFee())
             assertGt(
-                escrowTest.amountDeposited(address(this)),
+                escrowTest.amountDeposited(escrowTest.buyer()),
                 _preBalance,
                 "amountDeposited mapping did not update"
             );
