@@ -458,12 +458,13 @@ contract DoubleTokenLexscrowTest is Test {
         uint256 _preBalance2 = testToken2.balanceOf(escrowTestAddr);
         uint256 _preBuyerBalance = testToken.balanceOf(buyer);
         uint256 _preSellerBalance = testToken2.balanceOf(seller);
+        bool _isAlreadyExpired = escrowTest.isExpired();
 
         vm.warp(timestamp);
         escrowTest.checkIfExpired();
         // ensure, if timestamp is past expiration time and thus escrow is expired, boolean is updated and tokens are returned to the applicable parties
         // else, isExpired() should be false and balances should be unchanged
-        if (escrowTest.expirationTime() <= timestamp) {
+        if (escrowTest.expirationTime() <= timestamp && !_isAlreadyExpired) {
             assertTrue(escrowTest.isExpired());
 
             if (_preBalance != 0) {
@@ -644,6 +645,62 @@ contract DoubleTokenLexscrowTest is Test {
             );
             assertEq(testToken.balanceOf(conditionEscrowTestAddr), 0, "escrow balance should be zero");
             assertEq(testToken2.balanceOf(conditionEscrowTestAddr), 0, "escrow balance2 should be zero");
+        }
+    }
+
+    function testElectToTerminate() external {
+        vm.assume(escrowTest.isExpired() == false);
+        // deal each total amount and fee in escrow
+        testToken.mintToken(escrowTestAddr, escrowTest.totalAmount1() + escrowTest.fee1());
+        testToken2.mintToken(escrowTestAddr, escrowTest.totalAmount2() + escrowTest.fee2());
+
+        PreBalances memory preBalances = PreBalances(
+            testToken.balanceOf(escrowTestAddr),
+            testToken2.balanceOf(escrowTestAddr),
+            testToken.balanceOf(buyer),
+            testToken2.balanceOf(seller),
+            testToken2.balanceOf(receiver),
+            testToken.balanceOf(receiver)
+        );
+        if (escrowTest.isExpired()) vm.expectRevert();
+        vm.prank(seller);
+        escrowTest.electToTerminate(true);
+        if (escrowTest.isExpired()) vm.expectRevert();
+        vm.prank(buyer);
+        escrowTest.electToTerminate(true);
+        if (escrowTest.isExpired()) {
+            assertGt(
+                preBalances._preBalance,
+                testToken.balanceOf(escrowTestAddr),
+                "escrow's balance should have been reduced"
+            );
+            assertGt(
+                preBalances._preBalance2,
+                testToken2.balanceOf(escrowTestAddr),
+                "escrow's balance2 should have been reduced"
+            );
+            assertGt(
+                testToken.balanceOf(buyer),
+                preBalances._preBuyerBalance,
+                "buyer's balance of token1 should have been increased"
+            );
+            assertGt(
+                testToken2.balanceOf(seller),
+                preBalances._preSellerBalance,
+                "seller's balance of token2 should have been increased"
+            );
+            assertEq(
+                testToken2.balanceOf(receiver),
+                preBalances._preReceiverBalance2,
+                "receiver's balance of token2 should not change"
+            );
+            assertEq(
+                testToken.balanceOf(receiver),
+                preBalances._preReceiverBalance,
+                "receiver's balance of token1 should not change"
+            );
+            assertEq(testToken.balanceOf(escrowTestAddr), 0, "escrow balance should be zero");
+            assertEq(testToken2.balanceOf(escrowTestAddr), 0, "escrow balance2 should be zero");
         }
     }
 
