@@ -647,6 +647,62 @@ contract DoubleTokenLexscrowTest is Test {
         }
     }
 
+    function testElectToTerminate() external {
+        vm.assume(escrowTest.isExpired() == false);
+        // deal each total amount and fee in escrow
+        testToken.mintToken(escrowTestAddr, escrowTest.totalAmount1() + escrowTest.fee1());
+        testToken2.mintToken(escrowTestAddr, escrowTest.totalAmount2() + escrowTest.fee2());
+
+        PreBalances memory preBalances = PreBalances(
+            testToken.balanceOf(escrowTestAddr),
+            testToken2.balanceOf(escrowTestAddr),
+            testToken.balanceOf(buyer),
+            testToken2.balanceOf(seller),
+            testToken2.balanceOf(receiver),
+            testToken.balanceOf(receiver)
+        );
+        if (escrowTest.isExpired()) vm.expectRevert();
+        vm.prank(seller);
+        escrowTest.electToTerminate(true);
+        if (escrowTest.isExpired()) vm.expectRevert();
+        vm.prank(buyer);
+        escrowTest.electToTerminate(true);
+        if (escrowTest.isExpired()) {
+            assertGt(
+                preBalances._preBalance,
+                testToken.balanceOf(escrowTestAddr),
+                "escrow's balance should have been reduced"
+            );
+            assertGt(
+                preBalances._preBalance2,
+                testToken2.balanceOf(escrowTestAddr),
+                "escrow's balance2 should have been reduced"
+            );
+            assertGt(
+                testToken.balanceOf(buyer),
+                preBalances._preBuyerBalance,
+                "buyer's balance of token1 should have been increased"
+            );
+            assertGt(
+                testToken2.balanceOf(seller),
+                preBalances._preSellerBalance,
+                "seller's balance of token2 should have been increased"
+            );
+            assertEq(
+                testToken2.balanceOf(receiver),
+                preBalances._preReceiverBalance2,
+                "receiver's balance of token2 should not change"
+            );
+            assertEq(
+                testToken.balanceOf(receiver),
+                preBalances._preReceiverBalance,
+                "receiver's balance of token1 should not change"
+            );
+            assertEq(testToken.balanceOf(escrowTestAddr), 0, "escrow balance should be zero");
+            assertEq(testToken2.balanceOf(escrowTestAddr), 0, "escrow balance2 should be zero");
+        }
+    }
+
     /// @dev mock a BaseCondition call
     function checkCondition() public view returns (bool) {
         return (baseCondition);
