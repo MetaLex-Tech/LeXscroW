@@ -226,7 +226,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice deposit value simply by sending 'msg.value' to 'address(this)'; if openOffer, msg.sender must deposit 'totalWithFee'
     /** @dev max msg.value limit of 'totalWithFee', and if 'totalWithFee' is already held or escrow has expired, revert. Updates boolean and emits event when 'deposit' reached
      ** also updates 'buyer' to msg.sender if true 'openOffer' and false 'deposited' (msg.sender must send 'totalWithFee' to accept an openOffer), and
-     ** records amount deposited by msg.sender in case of refundability or where 'seller' rejects a 'buyer' and buyer's deposited amount is to be returned  */
+     ** records amount deposited by msg.sender (assigned to `buyer`) in case of refundability or where 'seller' rejects a 'buyer' and buyer's deposited amount is to be returned  */
     receive() external payable {
         uint256 _lockedBalance = address(this).balance - pendingWithdraw;
         if (_lockedBalance > totalWithFee)
@@ -246,7 +246,9 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         if (_lockedBalance == totalWithFee)
             emit EthLexscrow_TotalAmountInEscrow();
 
-        amountDeposited[msg.sender] += msg.value;
+        // if !openOffer, credit the `buyer`'s `amountDeposited` to prevent residual amounts upon execution, as the buyer receives the benefit of the deposit ultimately;
+        // alternatively, if openOffer, the msg.value must come from the newly assigned `buyer` anyway
+        amountDeposited[buyer] += msg.value;
         emit EthLexscrow_AmountReceived(msg.value);
     }
 
