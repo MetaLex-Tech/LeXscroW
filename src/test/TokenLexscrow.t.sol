@@ -326,8 +326,18 @@ contract TokenLexscrowTest is Test {
 
     function testUpdateSeller(address _addr) public {
         vm.startPrank(escrowTest.seller());
+        bool _reverted;
+        if (_addr == escrowTest.buyer() || _addr == escrowTest.seller()) {
+            vm.expectRevert();
+            _reverted = true;
+        }
         escrowTest.updateSeller(_addr);
-        assertEq(escrowTest.seller(), _addr, "seller address did not update");
+        if (!_reverted)
+            assertEq(
+                escrowTest.seller(),
+                _addr,
+                "seller address did not update"
+            );
     }
 
     function testUpdateBuyer(address _addr) public {
