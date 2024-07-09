@@ -344,7 +344,11 @@ contract TokenLexscrowTest is Test {
         vm.startPrank(escrowTest.buyer());
         uint256 _amtDeposited = escrowTest.amountDeposited(buyer);
         bool _reverted;
-        if (_addr == escrowTest.buyer() || _addr == escrowTest.seller()) {
+        if (
+            _addr == escrowTest.buyer() ||
+            _addr == escrowTest.seller() ||
+            escrowTest.rejected(buyer)
+        ) {
             vm.expectRevert();
             _reverted = true;
         }
@@ -384,7 +388,8 @@ contract TokenLexscrowTest is Test {
             _amount > totalWithFee ||
             (escrowTest.openOffer() && _amount < totalWithFee) ||
             escrowTest.expirationTime() <= block.timestamp ||
-            _deadline < block.timestamp
+            _deadline < block.timestamp ||
+            escrowTest.rejected(buyer)
         ) {
             _reverted = true;
             vm.expectRevert();
@@ -438,7 +443,8 @@ contract TokenLexscrowTest is Test {
         if (
             _amount + testToken.balanceOf(address(this)) > totalWithFee ||
             (escrowTest.openOffer() && _amount < totalWithFee) ||
-            escrowTest.expirationTime() <= block.timestamp
+            escrowTest.expirationTime() <= block.timestamp ||
+            escrowTest.rejected(buyer)
         ) {
             _reverted = true;
             vm.expectRevert();
@@ -531,10 +537,7 @@ contract TokenLexscrowTest is Test {
         }
     }
 
-    function testRejectDepositor(
-        address _depositor,
-        uint256 _deposit
-    ) external {
+    function testRejectDepositor(uint256 _deposit) external {
         // '_deposit' must be less than 'totalWithFee'
         vm.assume(_deposit <= totalWithFee);
         TokenLexscrow.Amounts memory _amounts = TokenLexscrow.Amounts(
@@ -555,14 +558,14 @@ contract TokenLexscrowTest is Test {
         );
         address _newContract = address(openEscrowTest);
         bool _reverted;
-        vm.assume(_newContract != _depositor);
-        // give the '_deposit' amount to the '_depositor' so they can accept the open offer
-        testToken.mintToken(_depositor, _deposit);
-        vm.startPrank(_depositor);
+        vm.assume(_newContract != buyer);
+        // give the '_deposit' amount to the 'buyer' so they can accept the open offer
+        testToken.mintToken(buyer, _deposit);
+        vm.startPrank(buyer);
         if (
             _deposit + testToken.balanceOf(_newContract) > totalWithFee ||
             (openEscrowTest.openOffer() && _deposit < totalWithFee) ||
-            openEscrowTest.amountDeposited(_depositor) == 0
+            openEscrowTest.amountDeposited(buyer) == 0
         ) {
             _reverted = true;
             vm.expectRevert();
@@ -571,18 +574,18 @@ contract TokenLexscrowTest is Test {
 
         bool _wasDeposited = openEscrowTest.deposited();
         uint256 _amountWithdrawableBefore = openEscrowTest.amountWithdrawable(
-            _depositor
+            buyer
         );
         vm.stopPrank();
         // reject depositor as 'seller'
         vm.startPrank(seller);
-        if (openEscrowTest.amountDeposited(_depositor) == 0 || !_success) {
+        if (openEscrowTest.amountDeposited(buyer) == 0 || !_success) {
             _reverted = true;
             vm.expectRevert();
         }
-        openEscrowTest.rejectDepositor(_depositor);
-        if (!_reverted || _newContract != address(this)) {
-            if (_wasDeposited && _success && _depositor != address(0)) {
+        openEscrowTest.rejectDepositor();
+        if (!_reverted) {
+            if (_wasDeposited && _success && buyer != address(0)) {
                 if (openEscrowTest.openOffer())
                     assertEq(
                         address(0),
@@ -594,15 +597,19 @@ contract TokenLexscrowTest is Test {
                     "deposited variable did not delete"
                 );
                 assertGt(
-                    openEscrowTest.amountWithdrawable(_depositor),
+                    openEscrowTest.amountWithdrawable(buyer),
                     _amountWithdrawableBefore,
-                    "_depositor's amountWithdrawable did not update"
+                    "buyer's amountWithdrawable did not update"
                 );
             }
             assertEq(
                 0,
-                openEscrowTest.amountDeposited(_depositor),
+                openEscrowTest.amountDeposited(buyer),
                 "amountDeposited did not delete"
+            );
+            assertTrue(
+                openEscrowTest.rejected(buyer),
+                "rejected mapping not updated"
             );
         }
     }
