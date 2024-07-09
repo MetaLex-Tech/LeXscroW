@@ -117,7 +117,8 @@ contract EthLexscrowTest is Test {
 
         if (
             _amount > totalAmountWithFee ||
-            escrowTest.expirationTime() <= block.timestamp
+            escrowTest.expirationTime() <= block.timestamp ||
+            escrowTest.rejected(buyer)
         ) vm.expectRevert();
         (_success, ) = escrowTestAddr.call{value: _amount}("");
         if (
@@ -201,10 +202,7 @@ contract EthLexscrowTest is Test {
         }
     }
 
-    function testRejectDepositor(
-        address payable _depositor,
-        uint256 _deposit
-    ) external {
+    function testRejectDepositor(uint256 _deposit) external {
         // '_deposit' must be less than 'totalAmount'
         vm.assume(_deposit <= totalAmount);
         EthLexscrow.Amounts memory _amounts = EthLexscrow.Amounts(
@@ -224,14 +222,14 @@ contract EthLexscrowTest is Test {
         );
         address payable _newContract = payable(address(openEscrowTest));
         bool _reverted;
-        vm.assume(_newContract != _depositor);
-        // give the '_deposit' amount to the '_depositor' so they can accept the open offer
-        vm.deal(_depositor, _deposit);
-        vm.startPrank(_depositor);
+        vm.assume(_newContract != buyer);
+        // give the '_deposit' amount to the 'buyer' so they can accept the open offer
+        vm.deal(buyer, _deposit);
+        vm.startPrank(buyer);
         if (
             _deposit + _newContract.balance > totalAmount ||
             (openEscrowTest.openOffer() && _deposit < totalAmount) ||
-            openEscrowTest.amountDeposited(_depositor) == 0
+            openEscrowTest.amountDeposited(buyer) == 0
         ) {
             _reverted = true;
             vm.expectRevert();
@@ -240,18 +238,18 @@ contract EthLexscrowTest is Test {
 
         bool _wasDeposited = openEscrowTest.deposited();
         uint256 _amountWithdrawableBefore = openEscrowTest.amountWithdrawable(
-            _depositor
+            buyer
         );
         vm.stopPrank();
         // reject depositor as 'seller'
         vm.startPrank(seller);
-        if (openEscrowTest.amountDeposited(_depositor) == 0 || !_success) {
+        if (openEscrowTest.amountDeposited(buyer) == 0 || !_success) {
             _reverted = true;
             vm.expectRevert();
         }
-        openEscrowTest.rejectDepositor(_depositor);
-        if (!_reverted || _newContract != address(this)) {
-            if (_wasDeposited && _success && _depositor != address(0)) {
+        openEscrowTest.rejectDepositor();
+        if (!_reverted) {
+            if (_wasDeposited && _success && buyer != address(0)) {
                 if (openEscrowTest.openOffer())
                     assertEq(
                         address(0),
@@ -263,15 +261,23 @@ contract EthLexscrowTest is Test {
                     "deposited variable did not delete"
                 );
                 assertGt(
-                    openEscrowTest.amountWithdrawable(_depositor),
+                    openEscrowTest.amountWithdrawable(buyer),
                     _amountWithdrawableBefore,
-                    "_depositor's amountWithdrawable did not update"
+                    "buyer's amountWithdrawable did not update"
+                );
+                assertTrue(
+                    openEscrowTest.rejected(buyer),
+                    "rejected mapping not updated"
                 );
             }
             assertEq(
                 0,
-                openEscrowTest.amountDeposited(_depositor),
+                openEscrowTest.amountDeposited(buyer),
                 "amountDeposited did not delete"
+            );
+            assertTrue(
+                openEscrowTest.rejected(buyer),
+                "rejected mapping not updated"
             );
         }
     }
