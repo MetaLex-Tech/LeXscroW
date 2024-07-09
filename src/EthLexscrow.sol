@@ -130,6 +130,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
 
     mapping(address => uint256) public amountDeposited;
     mapping(address => uint256) public amountWithdrawable;
+    mapping(address => bool) public rejected;
 
     ///
     /// EVENTS
@@ -160,6 +161,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     /// ERRORS
     ///
 
+    error EthLexscrow_AddressRejected();
     error EthLexscrow_BalanceExceedsTotalAmount();
     error EthLexscrow_DepositGreaterThanTotalAmount();
     error EthLexscrow_IsExpired();
@@ -228,6 +230,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
      ** also updates 'buyer' to msg.sender if true 'openOffer' and false 'deposited' (msg.sender must send 'totalWithFee' to accept an openOffer), and
      ** records amount deposited by msg.sender (assigned to `buyer`) in case of refundability or where 'seller' rejects a 'buyer' and buyer's deposited amount is to be returned  */
     receive() external payable {
+        if (rejected[msg.sender]) revert EthLexscrow_AddressRejected();
         uint256 _lockedBalance = address(this).balance - pendingWithdraw;
         if (_lockedBalance > totalWithFee)
             revert EthLexscrow_BalanceExceedsTotalAmount();
@@ -269,6 +272,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         if (msg.sender != buyer || _buyer == buyer)
             revert EthLexscrow_NotBuyer();
         if (_buyer == seller) revert EthLexscrow_NotSeller();
+        if (rejected[_buyer]) revert EthLexscrow_AddressRejected();
 
         // transfer 'amountDeposited[buyer]' to the new '_buyer', delete the existing buyer's 'amountDeposited', and update the 'buyer' state variable
         amountDeposited[_buyer] += amountDeposited[buyer];
@@ -311,29 +315,32 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         return RECEIPT.printReceipt(address(0), _weiAmount, DECIMALS);
     }
 
-    /// @notice for a 'seller' to reject any depositing address (including 'buyer') and enable their withdrawal of their deposited amount in 'withdraw()'
-    /// @param _depositor: address being rejected by 'seller' which will subsequently be able to withdraw their 'amountDeposited' in 'withdraw()'
-    /// @dev if !openOffer and 'seller' passes 'buyer' to this function, 'buyer' will need to call 'updateBuyer' to choose another address and re-deposit tokens.
-    function rejectDepositor(address payable _depositor) external nonReentrant {
+    /// @notice for a 'seller' to reject the 'buyer''s deposit and cause the return of their deposited amount, and preventing the `buyer` from depositing again
+    /// @dev if !openOffer, 'buyer' will need to call 'updateBuyer' to choose another address and re-deposit. If `openOffer`, a new depositing address must be used.
+    /// while there is a risk of a malicious actor spamming deposits from new undesirable addresses, it is their own funds at risk, and a tradeoff of using an `openOffer` LeXscrow.
+    function rejectDepositor() external nonReentrant {
         if (msg.sender != seller) revert EthLexscrow_NotSeller();
 
-        uint256 _amtDeposited = amountDeposited[_depositor];
+        uint256 _amtDeposited = amountDeposited[buyer];
         if (_amtDeposited == 0) revert EthLexscrow_ZeroAmount();
 
-        delete amountDeposited[_depositor];
-        // regardless of whether '_depositor' is 'buyer', permit them to withdraw their 'amountWithdrawable' balance
-        amountWithdrawable[_depositor] += _amtDeposited;
+        // prevent rejected address from being able to deposit again
+        rejected[buyer] = true;
+
+        delete amountDeposited[buyer];
+        // permit `buyer` to withdraw their 'amountWithdrawable' balance
+        amountWithdrawable[buyer] += _amtDeposited;
         // update the aggregate withdrawable balance counter
         pendingWithdraw += _amtDeposited;
 
         // if this depositor rejection causes the non-pendingWithdraw amount held in this contract to fall below the 'deposit', delete 'deposited'
         if (address(this).balance - pendingWithdraw < deposit) delete deposited;
 
-        if (_depositor == buyer && openOffer) {
+        if (openOffer) {
             // if 'openOffer', delete the 'buyer' variable so the next valid depositor will become 'buyer'
             // we do not delete 'buyer' if !openOffer, to allow the 'buyer' to choose another address via 'updateBuyer', rather than irreversibly deleting the variable
             delete buyer;
-            // the '_depositor' must have deposited at least 'deposit' since this is an open offer, so reset the 'deposited' variable as the deposit is now pending withdrawal
+            // the 'buyer' must have deposited at least 'deposit' since this is an open offer, so reset the 'deposited' variable as the deposit is now pending withdrawal
             delete deposited;
             emit EthLexscrow_BuyerUpdated(address(0));
         }
