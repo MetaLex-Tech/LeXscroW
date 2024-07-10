@@ -15,10 +15,7 @@ pragma solidity ^0.8.18;
 
 /// @notice interface for ERC-20 standard token contract, including EIP2612 permit function
 interface IERC20Permit {
-    function allowance(
-        address owner,
-        address spender
-    ) external view returns (uint256);
+    function allowance(address owner, address spender) external view returns (uint256);
 
     function balanceOf(address account) external view returns (uint256);
 
@@ -33,6 +30,8 @@ interface IERC20Permit {
         bytes32 r,
         bytes32 s
     ) external;
+
+    function totalSupply() external view returns (uint256);
 }
 
 /// @notice interface to LexscrowConditionManager or MetaLeX's regular ConditionManager
@@ -61,7 +60,11 @@ abstract contract SafeTransferLib {
 
     /// @dev Sends `amount` of ERC20 `token` from the current contract to `to`.
     /// Reverts upon failure.
-    function safeTransfer(address token, address to, uint256 amount) internal {
+    function safeTransfer(
+        address token,
+        address to,
+        uint256 amount
+    ) internal {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, to) // Store the `to` argument.
@@ -144,7 +147,7 @@ abstract contract ReentrancyGuard {
 /**
  * @title       TokenLexscrow
  *
- * @notice non-custodial smart escrow contract using ERC20 tokens on Ethereum Mainnet, supporting:
+ * @notice non-custodial smart escrow contract for non-rebasing ERC20 tokens on Ethereum Mainnet, supporting:
  * partial or full deposit amount
  * refundable or non-refundable deposit upon expiry
  * deposit via transfer or EIP2612 permit signature
@@ -173,8 +176,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     }
 
     // Receipt.sol contract address, ETH mainnet
-    IReceipt internal constant RECEIPT =
-        IReceipt(0xf838D6829fcCBedCB0B4D8aD58cb99814F935BA8);
+    IReceipt internal constant RECEIPT = IReceipt(0xf838D6829fcCBedCB0B4D8aD58cb99814F935BA8);
 
     // internal visibility for gas savings, as 'tokenContract' is public and bears the same contract address
     IERC20Permit internal immutable erc20;
@@ -206,10 +208,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
 
     event TokenLexscrow_AmountReceived(uint256 tokenAmount);
     event TokenLexscrow_BuyerUpdated(address newBuyer);
-    event TokenLexscrow_DepositedAmountTransferred(
-        address recipient,
-        uint256 amount
-    );
+    event TokenLexscrow_DepositedAmountTransferred(address recipient, uint256 amount);
     event TokenLexscrow_DepositInEscrow(address depositor);
     event TokenLexscrow_Deployed(
         bool refundable,
@@ -240,7 +239,6 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     error TokenLexscrow_NotSeller();
     error TokenLexscrow_NonERC20Contract();
     error TokenLexscrow_NotReadyToExecute();
-    error TokenLexscrow_OnlyOpenOffer();
     error TokenLexscrow_ZeroAmount();
 
     ///
@@ -269,28 +267,15 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         address _tokenContract,
         address _conditionManager,
         Amounts memory _amounts
-    ) payable {
-        if (_amounts.deposit > _amounts.totalAmount)
-            revert TokenLexscrow_DepositGreaterThanTotalAmount();
+    ) {
+        if (_amounts.deposit > _amounts.totalAmount) revert TokenLexscrow_DepositGreaterThanTotalAmount();
         if (_amounts.totalAmount == 0) revert TokenLexscrow_ZeroAmount();
-        if (_expirationTime <= block.timestamp)
-            revert TokenLexscrow_IsExpired();
-
-        // quick staticcall condition check that '_tokenContract' is at least partially ERC-20 compliant by checking if both totalSupply and balanceOf functions exist
-        (bool successTotalSupply, ) = _tokenContract.staticcall(
-            abi.encodeWithSignature("totalSupply()")
-        );
-
-        (bool successBalanceOf, ) = _tokenContract.staticcall(
-            abi.encodeWithSignature("balanceOf(address)", address(this))
-        );
-        if (!successTotalSupply || !successBalanceOf)
-            revert TokenLexscrow_NonERC20Contract();
+        if (_expirationTime <= block.timestamp) revert TokenLexscrow_IsExpired();
 
         refundable = _refundable;
         openOffer = _openOffer;
         seller = _seller;
-        buyer = _buyer;
+        if (!_openOffer) buyer = _buyer;
         tokenContract = _tokenContract;
         expirationTime = _expirationTime;
         deposit = _amounts.deposit;
@@ -300,6 +285,9 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         receiver = _amounts.receiver;
         conditionManager = ILexscrowConditionManager(_conditionManager);
         erc20 = IERC20Permit(_tokenContract);
+
+        // check ERC20 compliance, calls will revert if not compliant with interface
+        if (erc20.totalSupply() == 0 || erc20.balanceOf(address(this)) < 0) revert TokenLexscrow_NonERC20Contract();
 
         emit TokenLexscrow_Deployed(
             _refundable,
@@ -332,9 +320,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         bytes32 s
     ) external nonReentrant {
         if (rejected[_depositor]) revert TokenLexscrow_AddressRejected();
-        uint256 _balance = erc20.balanceOf(address(this)) +
-            _amount -
-            pendingWithdraw;
+        uint256 _balance = erc20.balanceOf(address(this)) + _amount - pendingWithdraw;
         if (_balance > totalWithFee) {
             uint256 _surplus = _balance - totalWithFee;
             // either reduce '_amount' by the surplus, or revert if '_amount' is less than the surplus
@@ -342,10 +328,8 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
             else revert TokenLexscrow_BalanceExceedsTotalAmount();
         }
         if (!openOffer && _depositor != buyer) revert TokenLexscrow_NotBuyer();
-        if (_deadline < block.timestamp || expirationTime <= block.timestamp)
-            revert TokenLexscrow_IsExpired();
-        if (openOffer && _balance < totalWithFee)
-            revert TokenLexscrow_MustDepositTotalAmount();
+        if (expirationTime <= block.timestamp) revert TokenLexscrow_IsExpired();
+        if (openOffer && _balance < totalWithFee) revert TokenLexscrow_MustDepositTotalAmount();
 
         if (_balance >= deposit && !deposited) {
             // if this TokenLexscrow is an open offer and was not yet accepted (thus '!deposited'), make depositing address the 'buyer' and update 'deposited' to true
@@ -375,9 +359,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _amount: amount of tokens deposited. If 'openOffer', '_amount' must == 'totalWithFee'; will be reduced by this function if user attempts to deposit an amount that will result in too high of a balance
     function depositTokens(uint256 _amount) external nonReentrant {
         if (rejected[msg.sender]) revert TokenLexscrow_AddressRejected();
-        uint256 _balance = erc20.balanceOf(address(this)) +
-            _amount -
-            pendingWithdraw;
+        uint256 _balance = erc20.balanceOf(address(this)) + _amount - pendingWithdraw;
         if (_balance > totalWithFee) {
             uint256 _surplus = _balance - totalWithFee;
             // either reduce '_amount' by the surplus, or revert if '_amount' is less than the surplus
@@ -388,8 +370,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         if (erc20.allowance(msg.sender, address(this)) < _amount)
             revert TokenLexscrow_AmountNotApprovedForTransferFrom();
         if (expirationTime <= block.timestamp) revert TokenLexscrow_IsExpired();
-        if (openOffer && _balance < totalWithFee)
-            revert TokenLexscrow_MustDepositTotalAmount();
+        if (openOffer && _balance < totalWithFee) revert TokenLexscrow_MustDepositTotalAmount();
 
         if (_balance >= deposit && !deposited) {
             // if this TokenLexscrow is an open offer and was not yet accepted (thus '!deposited'), make depositing address the 'buyer' and update 'deposited' to true
@@ -412,8 +393,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current seller to designate a new recipient address
     /// @param _seller: new recipient address of seller
     function updateSeller(address _seller) external {
-        if (msg.sender != seller || _seller == seller)
-            revert TokenLexscrow_NotSeller();
+        if (msg.sender != seller || _seller == seller) revert TokenLexscrow_NotSeller();
         if (_seller == buyer) revert TokenLexscrow_NotBuyer();
 
         seller = _seller;
@@ -423,8 +403,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current 'buyer' to designate a new buyer address
     /// @param _buyer: new address of buyer
     function updateBuyer(address _buyer) external {
-        if (msg.sender != buyer || _buyer == buyer)
-            revert TokenLexscrow_NotBuyer();
+        if (msg.sender != buyer || _buyer == buyer) revert TokenLexscrow_NotBuyer();
         if (_buyer == seller) revert TokenLexscrow_NotSeller();
         if (rejected[_buyer]) revert TokenLexscrow_AddressRejected();
 
@@ -443,8 +422,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     function execute() external {
         if (
             erc20.balanceOf(address(this)) - pendingWithdraw < totalWithFee ||
-            (address(conditionManager) != address(0) &&
-                !conditionManager.checkConditions())
+            (address(conditionManager) != address(0) && !conditionManager.checkConditions())
         ) revert TokenLexscrow_NotReadyToExecute();
 
         if (!checkIfExpired()) {
@@ -454,7 +432,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
             // safeTransfer 'totalAmount' to 'seller' and 'fee' to 'receiver'; note the deposit functions perform checks against depositing more than the 'totalWithFee',
             // and further safeguarded by any excess balance being withdrawable by buyer after expiry in 'checkIfExpired()'
             safeTransfer(tokenContract, seller, totalAmount);
-            safeTransfer(tokenContract, receiver, fee);
+            if (fee != 0) safeTransfer(tokenContract, receiver, fee);
 
             // effective time of execution is block.timestamp upon payment to seller
             emit TokenLexscrow_Executed(block.timestamp);
@@ -464,11 +442,8 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice convenience function to get a USD value receipt if a dAPI / data feed proxy exists for 'tokenContract', for example for 'seller' to submit 'totalAmount' immediately after execution/release of TokenLexscrow
     /// @dev external call will revert if price quote is too stale or if token is not supported; event containing '_paymentId' and '_usdValue' emitted by Receipt.sol
     /// @param _tokenAmount: amount of tokens (corresponding to this TokenLexscrow's 'tokenContract') for which caller is seeking the total USD value receipt
-    function getReceipt(
-        uint256 _tokenAmount
-    ) external returns (uint256 _paymentId, uint256 _usdValue) {
-        return
-            RECEIPT.printReceipt(tokenContract, _tokenAmount, erc20.decimals());
+    function getReceipt(uint256 _tokenAmount) external returns (uint256 _paymentId, uint256 _usdValue) {
+        return RECEIPT.printReceipt(tokenContract, _tokenAmount, erc20.decimals());
     }
 
     /// @notice for a 'seller' to reject the 'buyer''s deposit and cause the return of their deposited amount, and preventing the `buyer` from depositing again
@@ -490,8 +465,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         pendingWithdraw += _amtDeposited;
 
         // if this depositor rejection causes the non-pendingWithdraw amount held in this contract to fall below the 'deposit', delete 'deposited'
-        if (erc20.balanceOf(address(this)) - pendingWithdraw < deposit)
-            delete deposited;
+        if (erc20.balanceOf(address(this)) - pendingWithdraw < deposit) delete deposited;
 
         if (openOffer) {
             // if 'openOffer', delete the 'buyer' variable so the next valid depositor will become 'buyer'

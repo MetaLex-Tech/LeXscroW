@@ -34,11 +34,17 @@ interface IERC20Permit {
         bytes32 r,
         bytes32 s
     ) external;
+
+    function totalSupply() external view returns (uint256);
 }
 
 /// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount for supported tokens
 interface IReceipt {
-    function printReceipt(address token, uint256 tokenAmount, uint256 decimals) external returns (uint256, uint256);
+    function printReceipt(
+        address token,
+        uint256 tokenAmount,
+        uint256 decimals
+    ) external returns (uint256, uint256);
 }
 
 /// @notice Solady's SafeTransferLib 'SafeTransfer()' and 'SafeTransferFrom()'.  Extracted from library and pasted for convenience, transparency, and size minimization.
@@ -51,7 +57,11 @@ abstract contract SafeTransferLib {
 
     /// @dev Sends `amount` of ERC20 `token` from the current contract to `to`.
     /// Reverts upon failure.
-    function safeTransfer(address token, address to, uint256 amount) internal {
+    function safeTransfer(
+        address token,
+        address to,
+        uint256 amount
+    ) internal {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, to) // Store the `to` argument.
@@ -75,7 +85,12 @@ abstract contract SafeTransferLib {
     /// @dev Sends `amount` of ERC20 `token` from `from` to `to`.
     /// Reverts upon failure.
     /// The `from` account must have at least `amount` approved for the current contract to manage.
-    function safeTransferFrom(address token, address from, address to, uint256 amount) internal {
+    function safeTransferFrom(
+        address token,
+        address from,
+        address to,
+        uint256 amount
+    ) internal {
         /// @solidity memory-safe-assembly
         assembly {
             let m := mload(0x40) // Cache the free memory pointer.
@@ -188,7 +203,6 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
 
     event DoubleTokenLexscrow_AmountReceived(address token, uint256 tokenAmount);
     event DoubleTokenLexscrow_BuyerUpdated(address newBuyer);
-    event DoubleTokenLexscrow_DepositedAmountWithdrawn(address recipient, address token, uint256 amount);
     event DoubleTokenLexscrow_Deployed(
         bool openOffer,
         uint256 expirationTime,
@@ -251,32 +265,17 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         address _conditionManager,
         address _receipt,
         Amounts memory _amounts
-    ) payable {
+    ) {
         if (_amounts.totalAmount1 == 0 || _amounts.totalAmount2 == 0) revert DoubleTokenLexscrow_ZeroAmount();
         if (_expirationTime <= block.timestamp) revert DoubleTokenLexscrow_IsExpired();
         if (_tokenContract1 == _tokenContract2) revert DoubleTokenLexscrow_SameTokenContracts();
 
-        // quick staticcall condition check that each of '_tokenContract1' and '_tokenContract2' is at least partially ERC-20 compliant by checking if balanceOf function exists
-        (bool successBalanceOf1, bytes memory dataBalanceOf1) = _tokenContract1.staticcall(
-            abi.encodeWithSignature("balanceOf(address)", address(this))
-        );
-        (bool successBalanceOf2, bytes memory dataBalanceOf2) = _tokenContract2.staticcall(
-            abi.encodeWithSignature("balanceOf(address)", address(this))
-        );
-
-        if (
-            _tokenContract1.code.length == 0 ||
-            !successBalanceOf1 ||
-            dataBalanceOf1.length == 0 ||
-            _tokenContract2.code.length == 0 ||
-            !successBalanceOf2 ||
-            dataBalanceOf2.length == 0
-        ) revert DoubleTokenLexscrow_NonERC20Contract();
-
         openOffer = _openOffer;
         expirationTime = _expirationTime;
-        seller = _seller;
-        buyer = _buyer;
+        if (!openOffer) {
+            seller = _seller;
+            buyer = _buyer;
+        }
         totalAmount1 = _amounts.totalAmount1;
         totalAmount2 = _amounts.totalAmount2;
         fee1 = _amounts.fee1;
@@ -289,6 +288,14 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         receipt = IReceipt(_receipt);
         token1 = IERC20Permit(_tokenContract1);
         token2 = IERC20Permit(_tokenContract2);
+
+        // check ERC20 compliance, calls will revert if not compliant with interface
+        if (
+            token1.totalSupply() == 0 ||
+            token1.balanceOf(address(this)) < 0 ||
+            token2.totalSupply() == 0 ||
+            token2.balanceOf(address(this)) < 0
+        ) revert DoubleTokenLexscrow_NonERC20Contract();
 
         emit DoubleTokenLexscrow_Deployed(
             _openOffer,
@@ -323,7 +330,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         bytes32 r,
         bytes32 s
     ) external nonReentrant {
-        if (_deadline < block.timestamp || expirationTime <= block.timestamp) revert DoubleTokenLexscrow_IsExpired();
+        if (expirationTime <= block.timestamp) revert DoubleTokenLexscrow_IsExpired();
         if (_amount == 0) revert DoubleTokenLexscrow_ZeroAmount();
         bool _openOffer = openOffer;
 
@@ -475,9 +482,9 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
             // safeTransfer 'totalAmount1' to 'seller', 'totalAmount2' to 'buyer', and each fee to '_receiver'; note the deposit functions perform checks against depositing more than the totalAmounts plus fees,
             // and further safeguarded by any excess balance being returned to the respective party after expiry in 'checkIfExpired()'
             // if any fails, function will revert
-            safeTransfer(_tokenContract1, _receiver, _fee1);
+            if (_fee1 != 0) safeTransfer(_tokenContract1, _receiver, _fee1);
             safeTransfer(_tokenContract1, seller, _totalAmount1);
-            safeTransfer(_tokenContract2, _receiver, _fee2);
+            if (_fee2 != 0) safeTransfer(_tokenContract2, _receiver, _fee2);
             safeTransfer(_tokenContract2, buyer, _totalAmount2);
 
             // effective time of execution is block.timestamp, no need to emit token contracts, condition manager details, or amounts as these are immutable variables
