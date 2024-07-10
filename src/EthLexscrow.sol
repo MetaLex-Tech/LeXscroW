@@ -37,9 +37,7 @@ abstract contract SafeTransferLib {
     function safeTransferETH(address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
-            if iszero(
-                call(gas(), to, amount, codesize(), 0x00, codesize(), 0x00)
-            ) {
+            if iszero(call(gas(), to, amount, codesize(), 0x00, codesize(), 0x00)) {
                 // Store the function selector of `ETHTransferFailed()`.
                 mstore(0x00, 0xb12d13eb)
                 revert(0x1c, 0x04)
@@ -106,8 +104,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     }
 
     // Receipt.sol contract address, ETH mainnet
-    IReceipt internal constant RECEIPT =
-        IReceipt(0xf838D6829fcCBedCB0B4D8aD58cb99814F935BA8);
+    IReceipt internal constant RECEIPT = IReceipt(0xf838D6829fcCBedCB0B4D8aD58cb99814F935BA8);
     // 18 decimals for wei
     uint256 internal constant DECIMALS = 18;
 
@@ -138,10 +135,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
 
     event EthLexscrow_AmountReceived(uint256 weiAmount);
     event EthLexscrow_BuyerUpdated(address newBuyer);
-    event EthLexscrow_DepositedAmountTransferred(
-        address recipient,
-        uint256 amount
-    );
+    event EthLexscrow_DepositedAmountTransferred(address recipient, uint256 amount);
     event EthLexscrow_DepositInEscrow(address depositor);
     event EthLexscrow_Deployed(
         bool refundable,
@@ -169,7 +163,6 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     error EthLexscrow_NotReadyToExecute();
     error EthLexscrow_NotBuyer();
     error EthLexscrow_NotSeller();
-    error EthLexscrow_OnlyOpenOffer();
     error EthLexscrow_ZeroAmount();
 
     ///
@@ -197,8 +190,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         address _conditionManager,
         Amounts memory _amounts
     ) payable {
-        if (_amounts.deposit > _amounts.totalAmount)
-            revert EthLexscrow_DepositGreaterThanTotalAmount();
+        if (_amounts.deposit > _amounts.totalAmount) revert EthLexscrow_DepositGreaterThanTotalAmount();
         if (_amounts.totalAmount == 0) revert EthLexscrow_ZeroAmount();
         if (_expirationTime <= block.timestamp) revert EthLexscrow_IsExpired();
 
@@ -206,7 +198,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         openOffer = _openOffer;
         expirationTime = _expirationTime;
         seller = _seller;
-        buyer = _buyer;
+        if (!_openOffer) buyer = _buyer;
         deposit = _amounts.deposit;
         totalAmount = _amounts.totalAmount;
         fee = _amounts.fee;
@@ -232,11 +224,9 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     receive() external payable {
         if (rejected[msg.sender]) revert EthLexscrow_AddressRejected();
         uint256 _lockedBalance = address(this).balance - pendingWithdraw;
-        if (_lockedBalance > totalWithFee)
-            revert EthLexscrow_BalanceExceedsTotalAmount();
+        if (_lockedBalance > totalWithFee) revert EthLexscrow_BalanceExceedsTotalAmount();
         if (expirationTime <= block.timestamp) revert EthLexscrow_IsExpired();
-        if (openOffer && _lockedBalance < totalWithFee)
-            revert EthLexscrow_MustDepositTotalAmount();
+        if (openOffer && _lockedBalance < totalWithFee) revert EthLexscrow_MustDepositTotalAmount();
         if (_lockedBalance >= deposit && !deposited) {
             // if this EthLexscrow is an open offer and was not yet accepted (thus '!deposited'), make depositing address the 'buyer' and update 'deposited' to true
             if (openOffer) {
@@ -246,8 +236,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
             deposited = true;
             emit EthLexscrow_DepositInEscrow(msg.sender);
         }
-        if (_lockedBalance == totalWithFee)
-            emit EthLexscrow_TotalAmountInEscrow();
+        if (_lockedBalance == totalWithFee) emit EthLexscrow_TotalAmountInEscrow();
 
         // if !openOffer, credit the `buyer`'s `amountDeposited` to prevent residual amounts upon execution, as the buyer receives the benefit of the deposit ultimately;
         // alternatively, if openOffer, the msg.value must come from the newly assigned `buyer` anyway
@@ -258,8 +247,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current seller to designate a new recipient address
     /// @param _seller: new recipient address of seller
     function updateSeller(address payable _seller) external {
-        if (msg.sender != seller || _seller == seller)
-            revert EthLexscrow_NotSeller();
+        if (msg.sender != seller || _seller == seller) revert EthLexscrow_NotSeller();
         if (_seller == buyer) revert EthLexscrow_NotBuyer();
 
         seller = _seller;
@@ -269,8 +257,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice for the current 'buyer' to designate a new buyer address
     /// @param _buyer: new address of buyer
     function updateBuyer(address payable _buyer) external {
-        if (msg.sender != buyer || _buyer == buyer)
-            revert EthLexscrow_NotBuyer();
+        if (msg.sender != buyer || _buyer == buyer) revert EthLexscrow_NotBuyer();
         if (_buyer == seller) revert EthLexscrow_NotSeller();
         if (rejected[_buyer]) revert EthLexscrow_AddressRejected();
 
@@ -290,8 +277,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         uint256 _lockedBalance = address(this).balance - pendingWithdraw;
         if (
             _lockedBalance < totalWithFee ||
-            (address(conditionManager) != address(0) &&
-                !conditionManager.checkConditions())
+            (address(conditionManager) != address(0) && !conditionManager.checkConditions())
         ) revert EthLexscrow_NotReadyToExecute();
 
         if (!checkIfExpired()) {
@@ -299,7 +285,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
             delete amountDeposited[buyer];
             // safeTransfer 'totalAmount' to 'seller' and 'fee' to 'receiver', since 'receive()' prevents depositing more than the totalWithFee, and safeguarded by any excess balance being withdrawable by buyer after expiry in 'checkIfExpired()'
             safeTransferETH(seller, totalAmount);
-            safeTransferETH(receiver, fee);
+            if (fee != 0) safeTransferETH(receiver, fee);
 
             // effective time of execution is block.timestamp upon payment to seller
             emit EthLexscrow_Executed(block.timestamp);
@@ -309,9 +295,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @notice convenience function to get a USD value receipt if a dAPI / data feed proxy exists for ETH, for example for 'seller' to submit 'totalAmount' immediately after execution/release of this EthLexscrow
     /// @dev external call will revert if price quote is too stale or if token is not supported; event containing '_paymentId' and '_usdValue' emitted by Receipt.sol. address(0) hard-coded for tokenContract, as native gas token price is sought
     /// @param _weiAmount: amount of wei for which caller is seeking the total USD value receipt (for example, 'totalAmount' or 'deposit')
-    function getReceipt(
-        uint256 _weiAmount
-    ) external returns (uint256 _paymentId, uint256 _usdValue) {
+    function getReceipt(uint256 _weiAmount) external returns (uint256 _paymentId, uint256 _usdValue) {
         return RECEIPT.printReceipt(address(0), _weiAmount, DECIMALS);
     }
 
