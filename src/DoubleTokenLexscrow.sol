@@ -40,11 +40,7 @@ interface IERC20Permit {
 
 /// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount for supported tokens
 interface IReceipt {
-    function printReceipt(
-        address token,
-        uint256 tokenAmount,
-        uint256 decimals
-    ) external returns (uint256, uint256);
+    function printReceipt(address token, uint256 tokenAmount, uint256 decimals) external returns (uint256, uint256);
 }
 
 /// @notice Solady's SafeTransferLib 'SafeTransfer()' and 'SafeTransferFrom()'.  Extracted from library and pasted for convenience, transparency, and size minimization.
@@ -57,11 +53,7 @@ abstract contract SafeTransferLib {
 
     /// @dev Sends `amount` of ERC20 `token` from the current contract to `to`.
     /// Reverts upon failure.
-    function safeTransfer(
-        address token,
-        address to,
-        uint256 amount
-    ) internal {
+    function safeTransfer(address token, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, to) // Store the `to` argument.
@@ -85,12 +77,7 @@ abstract contract SafeTransferLib {
     /// @dev Sends `amount` of ERC20 `token` from `from` to `to`.
     /// Reverts upon failure.
     /// The `from` account must have at least `amount` approved for the current contract to manage.
-    function safeTransferFrom(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    ) internal {
+    function safeTransferFrom(address token, address from, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             let m := mload(0x40) // Cache the free memory pointer.
@@ -232,6 +219,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     error DoubleTokenLexscrow_NotSeller();
     error DoubleTokenLexscrow_NonERC20Contract();
     error DoubleTokenLexscrow_NotReadyToExecute();
+    error DoubleTokenLexscrow_PartiesHaveSameAddress();
     error DoubleTokenLexscrow_SameTokenContracts();
     error DoubleTokenLexscrow_ZeroAmount();
     error DoubleTokenLexscrow_ZeroAddress();
@@ -267,6 +255,12 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         Amounts memory _amounts
     ) {
         if (_amounts.totalAmount1 == 0 || _amounts.totalAmount2 == 0) revert DoubleTokenLexscrow_ZeroAmount();
+        if (
+            _tokenContract1 == address(0) ||
+            _tokenContract2 == address(0) ||
+            ((!_openOffer && _buyer == address(0)) || _seller == address(0))
+        ) revert DoubleTokenLexscrow_ZeroAddress();
+        if (_seller == _buyer) revert DoubleTokenLexscrow_PartiesHaveSameAddress();
         if (_expirationTime <= block.timestamp) revert DoubleTokenLexscrow_IsExpired();
         if (_tokenContract1 == _tokenContract2) revert DoubleTokenLexscrow_SameTokenContracts();
 
@@ -438,7 +432,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _seller new address of seller; conditional protects against passing address (0)
     function updateSeller(address _seller) external {
         if (msg.sender != seller || _seller == seller) revert DoubleTokenLexscrow_NotSeller();
-        if (_seller == buyer) revert DoubleTokenLexscrow_NotBuyer();
+        if (_seller == buyer) revert DoubleTokenLexscrow_PartiesHaveSameAddress();
         if (_seller == address(0)) revert DoubleTokenLexscrow_ZeroAddress();
 
         seller = _seller;
@@ -449,7 +443,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _buyer new address of buyer; conditional protects against passing address (0)
     function updateBuyer(address _buyer) external {
         if (msg.sender != buyer || _buyer == buyer) revert DoubleTokenLexscrow_NotBuyer();
-        if (_buyer == seller) revert DoubleTokenLexscrow_NotSeller();
+        if (_buyer == seller) revert DoubleTokenLexscrow_PartiesHaveSameAddress();
         if (_buyer == address(0)) revert DoubleTokenLexscrow_ZeroAddress();
 
         buyer = _buyer;

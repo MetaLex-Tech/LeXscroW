@@ -20,11 +20,7 @@ interface ILexscrowConditionManager {
 
 /// @notice interface to Receipt.sol, which optionally returns USD-value receipts for a provided token amount
 interface IReceipt {
-    function printReceipt(
-        address token,
-        uint256 tokenAmount,
-        uint256 decimals
-    ) external returns (uint256, uint256);
+    function printReceipt(address token, uint256 tokenAmount, uint256 decimals) external returns (uint256, uint256);
 }
 
 /// @notice Solady's SafeTransferLib 'SafeTransferETH()'.  Extracted from library and pasted for convenience, transparency, and size minimization.
@@ -163,6 +159,8 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     error EthLexscrow_NotReadyToExecute();
     error EthLexscrow_NotBuyer();
     error EthLexscrow_NotSeller();
+    error EthLexscrow_PartiesHaveSameAddress();
+    error EthLexscrow_ZeroAddress();
     error EthLexscrow_ZeroAmount();
 
     ///
@@ -192,6 +190,8 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     ) payable {
         if (_amounts.deposit > _amounts.totalAmount) revert EthLexscrow_DepositGreaterThanTotalAmount();
         if (_amounts.totalAmount == 0) revert EthLexscrow_ZeroAmount();
+        if (_seller == address(0) || (!_openOffer && _buyer == address(0))) revert EthLexscrow_ZeroAddress();
+        if (_seller == _buyer) revert EthLexscrow_PartiesHaveSameAddress();
         if (_expirationTime <= block.timestamp) revert EthLexscrow_IsExpired();
 
         refundable = _refundable;
@@ -248,7 +248,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _seller: new recipient address of seller
     function updateSeller(address payable _seller) external {
         if (msg.sender != seller || _seller == seller) revert EthLexscrow_NotSeller();
-        if (_seller == buyer) revert EthLexscrow_NotBuyer();
+        if (_seller == buyer) revert EthLexscrow_PartiesHaveSameAddress();
 
         seller = _seller;
         emit EthLexscrow_SellerUpdated(_seller);
@@ -258,7 +258,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _buyer: new address of buyer
     function updateBuyer(address payable _buyer) external {
         if (msg.sender != buyer || _buyer == buyer) revert EthLexscrow_NotBuyer();
-        if (_buyer == seller) revert EthLexscrow_NotSeller();
+        if (_buyer == seller) revert EthLexscrow_PartiesHaveSameAddress();
         if (rejected[_buyer]) revert EthLexscrow_AddressRejected();
 
         // transfer 'amountDeposited[buyer]' to the new '_buyer', delete the existing buyer's 'amountDeposited', and update the 'buyer' state variable
