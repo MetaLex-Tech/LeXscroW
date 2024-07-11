@@ -28,11 +28,7 @@ abstract contract ERC20 {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
 
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        uint8 _decimals
-    ) {
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
         name = _name;
         symbol = _symbol;
         decimals = _decimals;
@@ -53,11 +49,7 @@ abstract contract ERC20 {
         return true;
     }
 
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public virtual returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) public virtual returns (bool) {
         uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
 
         if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
@@ -307,6 +299,7 @@ contract TokenLexscrowTest is Test {
         vm.prank(buyer);
         if (
             _amount > totalWithFee ||
+            _amount == 0 ||
             (escrowTest.openOffer() && _amount < totalWithFee) ||
             escrowTest.expirationTime() <= block.timestamp ||
             _deadline < block.timestamp ||
@@ -337,6 +330,7 @@ contract TokenLexscrowTest is Test {
         vm.startPrank(buyer);
         testToken.approve(escrowTestAddr, _amount);
         if (
+            _amount == 0 ||
             _amount + testToken.balanceOf(address(this)) > totalWithFee ||
             (escrowTest.openOffer() && _amount < totalWithFee) ||
             escrowTest.expirationTime() <= block.timestamp ||
@@ -484,12 +478,7 @@ contract TokenLexscrowTest is Test {
     }
 
     // fuzz amounts
-    function testExecute(
-        uint256 _timestamp,
-        uint256 _deposit,
-        uint256 _totalAmount,
-        uint256 _fee
-    ) external {
+    function testExecute(uint256 _timestamp, uint256 _deposit, uint256 _totalAmount, uint256 _fee) external {
         // if 'totalWithFee' (accounting for any amounts withdrawable) isn't in escrow, expect revert
         // we just subtract buyer and seller's amountWithdrawable, if any (rather than mocking 'pendingWithdraw')
         vm.assume(
