@@ -41,11 +41,7 @@ interface ILexscrowConditionManager {
 
 /// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount
 interface IReceipt {
-    function printReceipt(
-        address token,
-        uint256 tokenAmount,
-        uint256 decimals
-    ) external returns (uint256, uint256);
+    function printReceipt(address token, uint256 tokenAmount, uint256 decimals) external returns (uint256, uint256);
 }
 
 /// @notice Solady's SafeTransferLib 'SafeTransfer()' and 'SafeTransferFrom()'.  Extracted from library and pasted for convenience, transparency, and size minimization.
@@ -60,11 +56,7 @@ abstract contract SafeTransferLib {
 
     /// @dev Sends `amount` of ERC20 `token` from the current contract to `to`.
     /// Reverts upon failure.
-    function safeTransfer(
-        address token,
-        address to,
-        uint256 amount
-    ) internal {
+    function safeTransfer(address token, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             mstore(0x14, to) // Store the `to` argument.
@@ -88,12 +80,7 @@ abstract contract SafeTransferLib {
     /// @dev Sends `amount` of ERC20 `token` from `from` to `to`.
     /// Reverts upon failure.
     /// The `from` account must have at least `amount` approved for the current contract to manage.
-    function safeTransferFrom(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    ) internal {
+    function safeTransferFrom(address token, address from, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
             let m := mload(0x40) // Cache the free memory pointer.
@@ -239,6 +226,8 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     error TokenLexscrow_NotSeller();
     error TokenLexscrow_NonERC20Contract();
     error TokenLexscrow_NotReadyToExecute();
+    error TokenLexscrow_PartiesHaveSameAddress();
+    error TokenLexscrow_ZeroAddress();
     error TokenLexscrow_ZeroAmount();
 
     ///
@@ -270,6 +259,9 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     ) {
         if (_amounts.deposit > _amounts.totalAmount) revert TokenLexscrow_DepositGreaterThanTotalAmount();
         if (_amounts.totalAmount == 0) revert TokenLexscrow_ZeroAmount();
+        if (_seller == address(0) || _tokenContract == address(0) || (!_openOffer && _buyer == address(0)))
+            revert TokenLexscrow_ZeroAddress();
+        if (_seller == _buyer) revert TokenLexscrow_PartiesHaveSameAddress();
         if (_expirationTime <= block.timestamp) revert TokenLexscrow_IsExpired();
 
         refundable = _refundable;
@@ -320,6 +312,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         bytes32 s
     ) external nonReentrant {
         if (rejected[_depositor]) revert TokenLexscrow_AddressRejected();
+        if (_amount == 0) revert TokenLexscrow_ZeroAmount();
         uint256 _balance = erc20.balanceOf(address(this)) + _amount - pendingWithdraw;
         if (_balance > totalWithFee) {
             uint256 _surplus = _balance - totalWithFee;
@@ -359,6 +352,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _amount: amount of tokens deposited. If 'openOffer', '_amount' must == 'totalWithFee'; will be reduced by this function if user attempts to deposit an amount that will result in too high of a balance
     function depositTokens(uint256 _amount) external nonReentrant {
         if (rejected[msg.sender]) revert TokenLexscrow_AddressRejected();
+        if (_amount == 0) revert TokenLexscrow_ZeroAmount();
         uint256 _balance = erc20.balanceOf(address(this)) + _amount - pendingWithdraw;
         if (_balance > totalWithFee) {
             uint256 _surplus = _balance - totalWithFee;
@@ -394,7 +388,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _seller: new recipient address of seller
     function updateSeller(address _seller) external {
         if (msg.sender != seller || _seller == seller) revert TokenLexscrow_NotSeller();
-        if (_seller == buyer) revert TokenLexscrow_NotBuyer();
+        if (_seller == buyer) revert TokenLexscrow_PartiesHaveSameAddress();
 
         seller = _seller;
         emit TokenLexscrow_SellerUpdated(_seller);
@@ -404,7 +398,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _buyer: new address of buyer
     function updateBuyer(address _buyer) external {
         if (msg.sender != buyer || _buyer == buyer) revert TokenLexscrow_NotBuyer();
-        if (_buyer == seller) revert TokenLexscrow_NotSeller();
+        if (_buyer == seller) revert TokenLexscrow_PartiesHaveSameAddress();
         if (rejected[_buyer]) revert TokenLexscrow_AddressRejected();
 
         // transfer 'amountDeposited[buyer]' to the new '_buyer', delete the existing buyer's 'amountDeposited', and update the 'buyer' state variable
