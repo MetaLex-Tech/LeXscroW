@@ -490,7 +490,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
      *** If refundable, update buyer's 'amountWithdrawable' to the entire balance. */
     /// @return isExpired
     function checkIfExpired() public nonReentrant returns (bool) {
-        if (expirationTime <= block.timestamp) {
+        if (expirationTime <= block.timestamp && !isExpired) {
             isExpired = true;
             uint256 _balance = erc20.balanceOf(address(this)) - pendingWithdraw;
             bool _isDeposited = deposited;
