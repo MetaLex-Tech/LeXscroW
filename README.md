@@ -17,7 +17,8 @@ All LeXscrow types have the following features:
 * Ownerless unique contract deployment
 * Optional conditions for execution, including signatures, time, oracle-fed data, and more, which are immutable from construction
 * specify depositing part(ies) or allow any address to deposit (open offer)
-* parties may replace their own address, and may be an EOA or a contract
+* parties may replace their own address, and may be an EOA or a contract 
+* mutual early termination option
 * expiration denominated in seconds / Unix time
 * re-usable until expiration
 
@@ -48,7 +49,7 @@ Unilateral smart escrow contract for (non-fee-on-transfer, non-rebasing) ERC20 t
 - initialized with a `deposit` amount which can be any amount up to the `totalAmount`, and may be refundable or non-refundable to `buyer` upon expiry
 - `buyer` (or, if an open offer, any address) deposits via `depositTokens` or `depositTokensWithPermit`
 - if desired, `buyer` may replace its address by passing the new address to `updateBuyer`, and `seller` may do the same with `updateSeller`
-- `seller` may call `rejectDepositor` to reject a depositing address, which will cause any amount deposited by such address to become withdrawable (via `withdraw`) by the rejected depositor
+- `seller` may call `rejectDepositor` to reject a depositing address, which will cause any amount deposited by such address to become withdrawable (via `withdraw`) by the rejected depositor. Also enables early mutual termination.
 - `execute` is not permissioned, and thus may be called by any address. If called, the LeXscrow executes and simultaneously releases `totalAmount` to `seller` iff:
 
     (1) `buyer` has deposited `totalAmount` + any applicable `fee` net of any `pendingWithdraw` amount,
@@ -68,7 +69,7 @@ Unilateral smart escrow contract for native gas tokens, denominated in 1e18 deci
 - initialized with a `deposit` amount which can be any amount up to the `totalAmount`, and may be refundable or non-refundable to `buyer` upon expiry
 - `buyer` (or, if an open offer, any address) deposits by sending amount directly to the LeXscrow contract address and thus invoking the `receive` function. The conditional logic rejects any amount in excess of `totalWithFee`
 - if desired, `buyer` may replace its address by passing the new address to `updateBuyer`, and `seller` may do the same with `updateSeller`
-- `seller` may call `rejectDepositor` to reject a depositing address, which will cause any amount deposited by such address to become withdrawable (via `withdraw`) by the rejected depositor
+- `seller` may call `rejectDepositor` to reject a depositing address, which will cause any amount deposited by such address to become withdrawable (via `withdraw`) by the rejected depositor. Also enables early mutual termination.
 - `execute` is not permissioned, and thus may be called by any address. If called, the LeXscrow executes and simultaneously releases `totalAmount` to `seller` iff:
       
     (1) `buyer` has deposited `totalAmount` + any applicable `fee` net of any `pendingWithdraw` amount,
@@ -95,7 +96,7 @@ Otherwise, amount held in address(this) will be treated according to the code in
 Before you begin, ensure you have the following installed:
 - [Node.js](https://nodejs.org/)
 - [Foundry](https://book.getfoundry.sh/getting-started/installation.html)
-- solc v0.8.20
+- solc v0.8.18
 
 ## Installation
 
@@ -115,6 +116,6 @@ To set up the project locally, follow these steps:
 3. **Compile Contracts**
 
     ```base
-    forge build --optimize --optimizer-runs 200 --use solc:0.8.20 --via-ir
+    forge build --optimize --optimizer-runs 200 --use solc:0.8.18 --via-ir
     ```
 
