@@ -14,7 +14,7 @@ pragma solidity ^0.8.18;
                                                                   */
 
 interface ILexscrowConditionManager {
-    function checkConditions() external returns (bool);
+    function checkConditions(bytes memory data) external returns (bool result);
 }
 
 /// @notice interface for ERC-20 standard token contract, including EIP2612 permit function
@@ -258,7 +258,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         if (
             _tokenContract1 == address(0) ||
             _tokenContract2 == address(0) ||
-            ((!_openOffer && _buyer == address(0)) || _seller == address(0))
+            ((!_openOffer && _buyer == address(0)) || (!_openOffer && _seller == address(0)))
         ) revert DoubleTokenLexscrow_ZeroAddress();
         if (_seller == _buyer) revert DoubleTokenLexscrow_PartiesHaveSameAddress();
         if (_expirationTime <= block.timestamp) revert DoubleTokenLexscrow_IsExpired();
@@ -467,7 +467,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         if (
             token1.balanceOf(address(this)) < _totalWithFee1 ||
             token2.balanceOf(address(this)) < _totalWithFee2 ||
-            (address(conditionManager) != address(0) && !conditionManager.checkConditions())
+            (address(conditionManager) != address(0) && !conditionManager.checkConditions(""))
         ) revert DoubleTokenLexscrow_NotReadyToExecute();
 
         if (!checkIfExpired()) {
