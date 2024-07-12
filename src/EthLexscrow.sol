@@ -15,7 +15,7 @@ pragma solidity ^0.8.18;
 
 /// @notice interface to LexscrowConditionManager or MetaLeX's regular ConditionManager
 interface ILexscrowConditionManager {
-    function checkConditions() external returns (bool);
+    function checkConditions(bytes memory data) external returns (bool result);
 }
 
 /// @notice interface to Receipt.sol, which optionally returns USD-value receipts for a provided token amount
@@ -277,7 +277,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         uint256 _lockedBalance = address(this).balance - pendingWithdraw;
         if (
             _lockedBalance < totalWithFee ||
-            (address(conditionManager) != address(0) && !conditionManager.checkConditions())
+            (address(conditionManager) != address(0) && !conditionManager.checkConditions(""))
         ) revert EthLexscrow_NotReadyToExecute();
 
         if (!checkIfExpired()) {

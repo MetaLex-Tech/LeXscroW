@@ -36,7 +36,7 @@ interface IERC20Permit {
 
 /// @notice interface to LexscrowConditionManager or MetaLeX's regular ConditionManager
 interface ILexscrowConditionManager {
-    function checkConditions() external returns (bool);
+    function checkConditions(bytes memory data) external returns (bool result);
 }
 
 /// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount
@@ -416,7 +416,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     function execute() external {
         if (
             erc20.balanceOf(address(this)) - pendingWithdraw < totalWithFee ||
-            (address(conditionManager) != address(0) && !conditionManager.checkConditions())
+            (address(conditionManager) != address(0) && !conditionManager.checkConditions(""))
         ) revert TokenLexscrow_NotReadyToExecute();
 
         if (!checkIfExpired()) {
