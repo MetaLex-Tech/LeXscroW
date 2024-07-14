@@ -7,14 +7,32 @@ import "src/EthLexscrow.sol";
 import "src/libs/LexscrowConditionManager.sol";
 
 interface IBaseCondition {
-    function checkCondition() external pure returns (bool);
+    function checkCondition(
+        address _contract,
+        bytes4 _functionSignature,
+        bytes memory data
+    ) external view returns (bool);
 }
 
-contract BaseCondition {
+contract BaseCondition is IERC165 {
+    bytes4 private constant _INTERFACE_ID_BASE_CONDITION = 0x8b94fce4;
+
     constructor() {}
 
+    function checkCondition(
+        address _contract,
+        bytes4 _functionSignature,
+        bytes memory data
+    ) public view virtual returns (bool) {}
+
+    function supportsInterface(bytes4 interfaceId) external view virtual override returns (bool) {
+        return interfaceId == _INTERFACE_ID_BASE_CONDITION || interfaceId == type(IERC165).interfaceId;
+    }
+
     //weak bool fuzzer (will be same within each test run)
-    function checkCondition() public view returns (bool) {
+    function checkConditions(bytes memory data) external view returns (bool result) {
+        // forgefmt: ignore -next-line
+        bytes memory _data = data;
         return ((block.number) % 2 == 0);
     }
 }
@@ -59,6 +77,49 @@ contract EthLexscrowTest is Test {
         assertEq(escrowTest.seller(), seller, "Seller mismatch");
         if (!escrowTest.openOffer()) assertEq(escrowTest.buyer(), buyer, "Buyer mismatch");
         else assertEq(escrowTest.buyer(), address(0), "openOffer buyer should be zero address");
+    }
+
+    function testConstructorFuzz(
+        bool _refundable,
+        bool _openOffer,
+        uint256 _expirationTime,
+        address payable _seller,
+        address payable _buyer,
+        uint256 _deposit,
+        uint256 _totalAmount
+    ) public {
+        EthLexscrow.Amounts memory _amounts = EthLexscrow.Amounts(_deposit, _totalAmount, 0, receiver);
+        bool _reverted;
+        if (
+            _deposit > _totalAmount ||
+            _totalAmount == 0 ||
+            _seller == address(0) ||
+            (!_openOffer && _buyer == address(0)) ||
+            _seller == _buyer ||
+            _expirationTime <= block.timestamp
+        ) {
+            _reverted = true;
+            vm.expectRevert();
+        }
+        EthLexscrow fuzzDeploy = new EthLexscrow(
+            _refundable,
+            _openOffer,
+            _expirationTime,
+            _seller,
+            _buyer,
+            address(0), // test without conditions first
+            _amounts
+        );
+        if (!_reverted) {
+            assertTrue(_refundable == fuzzDeploy.refundable(), "refundable mismatch");
+            assertTrue(_openOffer == fuzzDeploy.openOffer(), "openOffer mismatch");
+            assertEq(fuzzDeploy.totalAmount(), _totalAmount, "totalAmount mismatch");
+            assertEq(fuzzDeploy.deposit(), _deposit, "deposit mismatch");
+            assertEq(fuzzDeploy.expirationTime(), _expirationTime, "Expiry time mismatch");
+            assertEq(fuzzDeploy.seller(), _seller, "Seller mismatch");
+            if (!_openOffer) assertEq(fuzzDeploy.buyer(), _buyer, "Buyer mismatch");
+            else assertEq(fuzzDeploy.buyer(), address(0), "openOffer buyer should be zero address");
+        }
     }
 
     function testUpdateSeller(address payable _addr) public {
@@ -230,12 +291,7 @@ contract EthLexscrowTest is Test {
     }
 
     // fuzz amounts
-    function testExecute(
-        uint256 _timestamp,
-        uint256 _deposit,
-        uint256 _totalAmount,
-        uint256 _fee
-    ) external {
+    function testExecute(uint256 _timestamp, uint256 _deposit, uint256 _totalAmount, uint256 _fee) external {
         // if 'totalAmountwithFee' (accounting for any amounts withdrawable) isn't in escrow, expect revert
         // we just subtract buyer and seller's amountWithdrawable, if any (rather than mocking 'pendingWithdraw')
         vm.assume(
@@ -323,20 +379,20 @@ contract EthLexscrowTest is Test {
         bool result;
         for (uint256 x = 0; x < _conditions.length; ) {
             if (_conditions[x].op == LexscrowConditionManager.Logic.AND) {
-                result = IBaseCondition(_conditions[x].condition).checkCondition();
+                result = IBaseCondition(_conditions[x].condition).checkCondition(address(this), msg.sig, "");
                 if (!result) {
                     result = false;
                     break;
                 }
             } else {
-                result = IBaseCondition(_conditions[x].condition).checkCondition();
+                result = IBaseCondition(_conditions[x].condition).checkCondition(address(this), msg.sig, "");
                 if (result) break;
             }
             unchecked {
                 ++x; // cannot overflow without hitting gaslimit
             }
         }
-        bool callResult = _manager.checkConditions();
+        bool callResult = _manager.checkConditions("");
         if (_len == 0) assertTrue(callResult, "empty conditions should return true");
         else assertTrue(result == callResult, "condition calls do not match");
 
