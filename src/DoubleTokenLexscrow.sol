@@ -14,7 +14,7 @@ pragma solidity ^0.8.18;
                                                                   */
 
 interface ILexscrowConditionManager {
-    function checkConditions(bytes memory data) external returns (bool result);
+    function checkConditions(bytes memory data) external view returns (bool result);
 }
 
 /// @notice interface for ERC-20 standard token contract, including EIP2612 permit function
