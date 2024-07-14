@@ -36,7 +36,7 @@ interface IERC20Permit {
 
 /// @notice interface to LexscrowConditionManager or MetaLeX's regular ConditionManager
 interface ILexscrowConditionManager {
-    function checkConditions(bytes memory data) external returns (bool result);
+    function checkConditions(bytes memory data) external view returns (bool result);
 }
 
 /// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount
