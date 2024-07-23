@@ -235,7 +235,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _buyer the buyer's address, depositor of the 'totalAmount1' + 'fee1' (in token1) and recipient of the 'totalAmount2' (in token2) if the contract executes. Automatically updated by successful 'depositTokensWithPermit()' or 'depositTokens()' if 'openOffer'
     /// @param _tokenContract1 contract address for the ERC20 token used in this DoubleTokenLexscrow as 'token1'
     /// @param _tokenContract2 contract address for the ERC20 token used in this DoubleTokenLexscrow as 'token2'; must be different than `_tokenContract1`
-    /// @param _conditionManager contract address for ConditionManager.sol
+    /// @param _conditionManager contract address for LexscrowConditionManager.sol, or address(0) if none
     /// @param _receipt contract address for Receipt.sol contract
     /// @param _amounts struct containing the total amounts and fees as follows:
     /// _totalAmount1: total amount of 'tokenContract1' ultimately intended for 'seller', not including fees
@@ -326,17 +326,25 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     ) external nonReentrant {
         if (expirationTime <= block.timestamp) revert DoubleTokenLexscrow_IsExpired();
         if (_amount == 0) revert DoubleTokenLexscrow_ZeroAmount();
+        uint256 _permitAmount = _amount;
         bool _openOffer = openOffer;
 
         if (!_token1Deposit) {
             if (!_openOffer && _depositor != seller) revert DoubleTokenLexscrow_NotSeller();
             uint256 _totalWithFee2 = totalAmount2 + fee2;
             uint256 _balance2 = token2.balanceOf(address(this)) + _amount;
-            if (_balance2 > _totalWithFee2) revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+
+            if (_balance2 > _totalWithFee2) {
+                uint256 _surplus = _balance2 - _totalWithFee2;
+                // either reduce '_amount' by the surplus, or revert if '_amount' is less than the surplus
+                if (_amount - _surplus > 0) _amount -= _surplus;
+                else revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+            }
             if (_openOffer && _balance2 < _totalWithFee2) revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
             address _tokenContract2 = tokenContract2;
 
-            if (_balance2 == _totalWithFee2) {
+            // whether exact amount deposited or adjusted for surplus, total amount will be in escrow
+            if (_balance2 >= _totalWithFee2) {
                 // if this DoubleTokenLexscrow is an open offer and was not yet accepted by tendering full amount, make depositing address the 'seller'
                 if (_openOffer) {
                     seller = _depositor;
@@ -346,17 +354,24 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
             }
             emit DoubleTokenLexscrow_AmountReceived(_tokenContract2, _amount);
 
-            token2.permit(_depositor, address(this), _amount, _deadline, v, r, s);
+            token2.permit(_depositor, address(this), _permitAmount, _deadline, v, r, s);
             safeTransferFrom(_tokenContract2, _depositor, address(this), _amount);
         } else {
             if (!_openOffer && _depositor != buyer) revert DoubleTokenLexscrow_NotBuyer();
             uint256 _totalWithFee1 = totalAmount1 + fee1;
             uint256 _balance1 = token1.balanceOf(address(this)) + _amount;
-            if (_balance1 > _totalWithFee1) revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+
+            if (_balance1 > _totalWithFee1) {
+                uint256 _surplus = _balance1 - _totalWithFee1;
+                // either reduce '_amount' by the surplus, or revert if '_amount' is less than the surplus
+                if (_amount - _surplus > 0) _amount -= _surplus;
+                else revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+            }
             if (_openOffer && _balance1 < _totalWithFee1) revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
             address _tokenContract1 = tokenContract1;
 
-            if (_balance1 == _totalWithFee1) {
+            // whether exact amount deposited or adjusted for surplus, total amount will be in escrow
+            if (_balance1 >= _totalWithFee1) {
                 // if this DoubleTokenLexscrow is an open offer and was not yet accepted by tendering full amount, make depositing address the 'buyer'
                 if (_openOffer) {
                     buyer = _depositor;
@@ -366,7 +381,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
             }
             emit DoubleTokenLexscrow_AmountReceived(_tokenContract1, _amount);
 
-            token1.permit(_depositor, address(this), _amount, _deadline, v, r, s);
+            token1.permit(_depositor, address(this), _permitAmount, _deadline, v, r, s);
             safeTransferFrom(_tokenContract1, _depositor, address(this), _amount);
         }
     }
@@ -389,11 +404,18 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
                 revert DoubleTokenLexscrow_AmountNotApprovedForTransferFrom();
             uint256 _totalWithFee2 = totalAmount2 + fee2;
             uint256 _balance2 = token2.balanceOf(address(this)) + _amount;
-            if (_balance2 > _totalWithFee2) revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+
+            if (_balance2 > _totalWithFee2) {
+                uint256 _surplus = _balance2 - _totalWithFee2;
+                // either reduce '_amount' by the surplus, or revert if '_amount' is less than the surplus
+                if (_amount - _surplus > 0) _amount -= _surplus;
+                else revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+            }
             if (_openOffer && _balance2 < _totalWithFee2) revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
             address _tokenContract2 = tokenContract2;
 
-            if (_balance2 == _totalWithFee2) {
+            // whether exact amount deposited or adjusted for surplus, total amount will be in escrow
+            if (_balance2 >= _totalWithFee2) {
                 // if this DoubleTokenLexscrow is an open offer and was not yet accepted by tendering full amount, make depositing address the 'seller'
                 if (_openOffer) {
                     seller = msg.sender;
@@ -410,11 +432,18 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
                 revert DoubleTokenLexscrow_AmountNotApprovedForTransferFrom();
             uint256 _totalWithFee1 = totalAmount1 + fee1;
             uint256 _balance1 = token1.balanceOf(address(this)) + _amount;
-            if (_balance1 > _totalWithFee1) revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+
+            if (_balance1 > _totalWithFee1) {
+                uint256 _surplus = _balance1 - _totalWithFee1;
+                // either reduce '_amount' by the surplus, or revert if '_amount' is less than the surplus
+                if (_amount - _surplus > 0) _amount -= _surplus;
+                else revert DoubleTokenLexscrow_BalanceExceedsTotalAmountWithFee();
+            }
             if (_openOffer && _balance1 < _totalWithFee1) revert DoubleTokenLexscrow_MustDepositTotalAmountWithFee();
             address _tokenContract1 = tokenContract1;
 
-            if (_balance1 == _totalWithFee1) {
+            // whether exact amount deposited or adjusted for surplus, total amount will be in escrow
+            if (_balance1 >= _totalWithFee1) {
                 // if this DoubleTokenLexscrow is an open offer and was not yet accepted by tendering full amount, make depositing address the 'buyer'
                 if (_openOffer) {
                     buyer = msg.sender;
