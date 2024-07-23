@@ -314,6 +314,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         if (rejected[_depositor]) revert TokenLexscrow_AddressRejected();
         if (_amount == 0) revert TokenLexscrow_ZeroAmount();
         uint256 _balance = erc20.balanceOf(address(this)) + _amount - pendingWithdraw;
+        uint256 _permitAmount = _amount;
         if (_balance > totalWithFee) {
             uint256 _surplus = _balance - totalWithFee;
             // either reduce '_amount' by the surplus, or revert if '_amount' is less than the surplus
@@ -333,13 +334,14 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
             deposited = true;
             emit TokenLexscrow_DepositInEscrow(_depositor);
         }
-        if (_balance == totalWithFee) emit TokenLexscrow_TotalAmountInEscrow();
+        // whether exact amount deposited or adjusted for surplus, total amount will be in escrow
+        if (_balance >= totalWithFee) emit TokenLexscrow_TotalAmountInEscrow();
 
         // if !openOffer, credit the `buyer`'s `amountDeposited` to prevent residual amounts upon execution, as the buyer receives the benefit of the deposit ultimately;
         // alternatively, if openOffer, the `_amount` must come from the newly assigned `buyer` anyway
         amountDeposited[buyer] += _amount;
 
-        erc20.permit(_depositor, address(this), _amount, _deadline, v, r, s);
+        erc20.permit(_depositor, address(this), _permitAmount, _deadline, v, r, s);
         safeTransferFrom(tokenContract, _depositor, address(this), _amount);
         emit TokenLexscrow_AmountReceived(_amount);
     }
@@ -375,7 +377,8 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
             deposited = true;
             emit TokenLexscrow_DepositInEscrow(msg.sender);
         }
-        if (_balance == totalWithFee) emit TokenLexscrow_TotalAmountInEscrow();
+        // whether exact amount deposited or adjusted for surplus, total amount will be in escrow
+        if (_balance >= totalWithFee) emit TokenLexscrow_TotalAmountInEscrow();
 
         // if !openOffer, credit the `buyer`'s `amountDeposited` to prevent residual amounts upon execution, as the buyer receives the benefit of the deposit ultimately;
         // alternatively, if openOffer, the `_amount` must come from the newly assigned `buyer` anyway
