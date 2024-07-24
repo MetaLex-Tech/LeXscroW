@@ -344,7 +344,8 @@ contract TokenLexscrowTest is Test {
 
     function testDepositTokensWithPermit(uint256 _amount, uint256 _deadline) public {
         bool _reverted;
-        vm.assume(_amount <= totalWithFee);
+        uint256 _beforeBalance = testToken.balanceOf(escrowTestAddr);
+
         SigUtils.Permit memory permit = SigUtils.Permit({
             owner: buyer,
             spender: escrowTestAddr,
@@ -357,11 +358,10 @@ contract TokenLexscrowTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
         // check amountDeposited mapping pre-call
         uint256 _beforeAmountDeposited = escrowTest.amountDeposited(buyer);
-        uint256 _beforeBalance = testToken.balanceOf(escrowTestAddr);
 
         vm.prank(buyer);
         if (
-            _amount > totalWithFee ||
+            _beforeBalance > totalWithFee ||
             _amount == 0 ||
             (escrowTest.openOffer() && _amount < totalWithFee) ||
             escrowTest.expirationTime() <= block.timestamp ||
@@ -385,16 +385,15 @@ contract TokenLexscrowTest is Test {
 
     function testDepositTokens(uint256 _amount) public {
         bool _reverted;
-        vm.assume(_amount <= totalWithFee);
+        uint256 _beforeBalance = testToken.balanceOf(escrowTestAddr);
 
         uint256 _beforeAmountDeposited = escrowTest.amountDeposited(buyer);
-        uint256 _beforeBalance = testToken.balanceOf(escrowTestAddr);
 
         vm.startPrank(buyer);
         testToken.approve(escrowTestAddr, _amount);
         if (
             _amount == 0 ||
-            _amount + testToken.balanceOf(address(this)) > totalWithFee ||
+            _beforeBalance > totalWithFee ||
             (escrowTest.openOffer() && _amount < totalWithFee) ||
             escrowTest.expirationTime() <= block.timestamp ||
             escrowTest.rejected(buyer)
