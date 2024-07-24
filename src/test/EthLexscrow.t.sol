@@ -15,8 +15,6 @@ interface IBaseCondition {
 }
 
 contract BaseCondition is IERC165 {
-    bytes4 private constant _INTERFACE_ID_BASE_CONDITION = 0x8b94fce4;
-
     constructor() {}
 
     function checkCondition(
@@ -26,7 +24,7 @@ contract BaseCondition is IERC165 {
     ) public view virtual returns (bool) {}
 
     function supportsInterface(bytes4 interfaceId) external view virtual override returns (bool) {
-        return interfaceId == _INTERFACE_ID_BASE_CONDITION || interfaceId == type(IERC165).interfaceId;
+        return interfaceId == type(ICondition).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
     //weak bool fuzzer (will be same within each test run)
