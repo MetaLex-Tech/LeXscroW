@@ -53,9 +53,6 @@ contract LexscrowConditionManager {
 
     Condition[] public conditions;
 
-    /// @dev "checkCondition(address,bytes4,bytes)"
-    bytes4 private constant _INTERFACE_ID_BASE_CONDITION = 0x8b94fce4;
-
     mapping(address => bool) internal conditionContract;
 
     error LexscrowConditionManager_DuplicateCondition();
@@ -71,8 +68,7 @@ contract LexscrowConditionManager {
     constructor(Condition[] memory _conditions) payable {
         for (uint256 i = 0; i < _conditions.length; ) {
             address _currentCondition = _conditions[i].condition;
-
-            if (!IERC165(_currentCondition).supportsInterface(_INTERFACE_ID_BASE_CONDITION))
+            if (!IERC165(_currentCondition).supportsInterface(type(ICondition).interfaceId))
                 revert LexscrowConditionManager_InvalidCondition();
             if (conditionContract[_currentCondition]) revert LexscrowConditionManager_DuplicateCondition();
 

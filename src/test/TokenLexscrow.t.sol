@@ -15,8 +15,6 @@ interface IBaseCondition {
 }
 
 contract BaseCondition is IERC165 {
-    bytes4 private constant _INTERFACE_ID_BASE_CONDITION = 0x8b94fce4;
-
     constructor() {}
 
     function checkCondition(
@@ -26,7 +24,7 @@ contract BaseCondition is IERC165 {
     ) public view virtual returns (bool) {}
 
     function supportsInterface(bytes4 interfaceId) external view virtual override returns (bool) {
-        return interfaceId == _INTERFACE_ID_BASE_CONDITION || interfaceId == type(IERC165).interfaceId;
+        return interfaceId == type(ICondition).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
     //weak bool fuzzer (will be same within each test run)
@@ -346,7 +344,8 @@ contract TokenLexscrowTest is Test {
 
     function testDepositTokensWithPermit(uint256 _amount, uint256 _deadline) public {
         bool _reverted;
-        vm.assume(_amount <= totalWithFee);
+        uint256 _beforeBalance = testToken.balanceOf(escrowTestAddr);
+
         SigUtils.Permit memory permit = SigUtils.Permit({
             owner: buyer,
             spender: escrowTestAddr,
@@ -359,11 +358,10 @@ contract TokenLexscrowTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
         // check amountDeposited mapping pre-call
         uint256 _beforeAmountDeposited = escrowTest.amountDeposited(buyer);
-        uint256 _beforeBalance = testToken.balanceOf(escrowTestAddr);
 
         vm.prank(buyer);
         if (
-            _amount > totalWithFee ||
+            _beforeBalance > totalWithFee ||
             _amount == 0 ||
             (escrowTest.openOffer() && _amount < totalWithFee) ||
             escrowTest.expirationTime() <= block.timestamp ||
@@ -387,16 +385,15 @@ contract TokenLexscrowTest is Test {
 
     function testDepositTokens(uint256 _amount) public {
         bool _reverted;
-        vm.assume(_amount <= totalWithFee);
+        uint256 _beforeBalance = testToken.balanceOf(escrowTestAddr);
 
         uint256 _beforeAmountDeposited = escrowTest.amountDeposited(buyer);
-        uint256 _beforeBalance = testToken.balanceOf(escrowTestAddr);
 
         vm.startPrank(buyer);
         testToken.approve(escrowTestAddr, _amount);
         if (
             _amount == 0 ||
-            _amount + testToken.balanceOf(address(this)) > totalWithFee ||
+            _beforeBalance > totalWithFee ||
             (escrowTest.openOffer() && _amount < totalWithFee) ||
             escrowTest.expirationTime() <= block.timestamp ||
             escrowTest.rejected(buyer)

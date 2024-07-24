@@ -15,8 +15,6 @@ interface IBaseCondition {
 }
 
 contract BaseCondition is IERC165 {
-    bytes4 private constant _INTERFACE_ID_BASE_CONDITION = 0x8b94fce4;
-
     constructor() {}
 
     function checkCondition(
@@ -26,7 +24,7 @@ contract BaseCondition is IERC165 {
     ) public view virtual returns (bool) {}
 
     function supportsInterface(bytes4 interfaceId) external view virtual override returns (bool) {
-        return interfaceId == _INTERFACE_ID_BASE_CONDITION || interfaceId == type(IERC165).interfaceId;
+        return interfaceId == type(ICondition).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
     //weak bool fuzzer (will be same within each test run)
@@ -427,7 +425,7 @@ contract DoubleTokenLexscrowTest is Test {
         vm.prank(buyer);
         if (
             !_token1Deposit ||
-            _amount > totalAmount + fee ||
+            _beforeBalance > totalAmount + fee ||
             _amount > testToken.balanceOf(buyer) ||
             (escrowTest.openOffer() && _amount < totalAmount + fee) ||
             escrowTest.expirationTime() <= block.timestamp ||
@@ -454,7 +452,7 @@ contract DoubleTokenLexscrowTest is Test {
         testToken.approve(escrowTestAddr, _amount);
         if (
             !_token1Deposit ||
-            _amount + testToken.balanceOf(address(this)) > totalAmount + fee ||
+            _beforeBalance > totalAmount + fee ||
             (escrowTest.openOffer() && _amount < totalAmount + fee) ||
             escrowTest.expirationTime() <= block.timestamp
         ) {
@@ -479,7 +477,7 @@ contract DoubleTokenLexscrowTest is Test {
         testToken2.approve(escrowTestAddr, _amount);
         if (
             _token1Deposit || // seller will deposit token2, so _token1Deposit should be false for this
-            _amount + testToken2.balanceOf(address(this)) > totalAmount + fee ||
+            _beforeBalance > totalAmount + fee ||
             (escrowTest.openOffer() && _amount < totalAmount + fee) ||
             escrowTest.expirationTime() <= block.timestamp
         ) {
