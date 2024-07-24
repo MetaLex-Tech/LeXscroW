@@ -425,7 +425,7 @@ contract DoubleTokenLexscrowTest is Test {
         vm.prank(buyer);
         if (
             !_token1Deposit ||
-            _amount > totalAmount + fee ||
+            _beforeBalance > totalAmount + fee ||
             _amount > testToken.balanceOf(buyer) ||
             (escrowTest.openOffer() && _amount < totalAmount + fee) ||
             escrowTest.expirationTime() <= block.timestamp ||
@@ -452,7 +452,7 @@ contract DoubleTokenLexscrowTest is Test {
         testToken.approve(escrowTestAddr, _amount);
         if (
             !_token1Deposit ||
-            _amount + testToken.balanceOf(address(this)) > totalAmount + fee ||
+            _beforeBalance > totalAmount + fee ||
             (escrowTest.openOffer() && _amount < totalAmount + fee) ||
             escrowTest.expirationTime() <= block.timestamp
         ) {
@@ -477,7 +477,7 @@ contract DoubleTokenLexscrowTest is Test {
         testToken2.approve(escrowTestAddr, _amount);
         if (
             _token1Deposit || // seller will deposit token2, so _token1Deposit should be false for this
-            _amount + testToken2.balanceOf(address(this)) > totalAmount + fee ||
+            _beforeBalance > totalAmount + fee ||
             (escrowTest.openOffer() && _amount < totalAmount + fee) ||
             escrowTest.expirationTime() <= block.timestamp
         ) {
