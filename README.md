@@ -12,7 +12,7 @@
 # Overview
 Immutable, non-custodial, flexibly-conditioned escrow, transfers, and swaps. 
 
-All LeXscrow types have the following features:
+All LeXscroW types have the following features:
 
 * Ownerless unique contract deployment
 * Optional conditions for execution, including signatures, time, oracle-fed data, and more, which are immutable from construction
@@ -22,7 +22,7 @@ All LeXscrow types have the following features:
 * expiration denominated in seconds / Unix time
 * re-usable until expiration
 
-As all parameters aside from parties' addresses are immutable upon a LeXscrow's deployment, configuration of each such parameter is critical
+As all parameters aside from parties' addresses are immutable upon a LeXscroW's deployment, configuration of each such parameter is critical
 
 ## DoubleTokenLexscrow
 
@@ -38,9 +38,9 @@ Bilateral smart escrow contract for (non-fee-on-transfer, non-rebasing) ERC20 to
 
       (3) if there is/are condition(s), such condition(s) is/are satisfied upon the external call in `execute`.
 
-If executed, the LeXscrow is re-usable by parties until the set expiration time.
+If executed, the LeXscroW is re-usable by parties until the set expiration time.
 
-Otherwise, all deposited amounts of `token1` are returned to `buyer` and all deposited amounts of `token2` are returned to `seller` if the LeXscrow expires.
+Otherwise, all deposited amounts of `token1` are returned to `buyer` and all deposited amounts of `token2` are returned to `seller` if the LeXscroW expires.
 
 ## TokenLexscrow
 
@@ -50,7 +50,7 @@ Unilateral smart escrow contract for (non-fee-on-transfer, non-rebasing) ERC20 t
 - `buyer` (or, if an open offer, any address) deposits via `depositTokens` or `depositTokensWithPermit`
 - if desired, `buyer` may replace its address by passing the new address to `updateBuyer`, and `seller` may do the same with `updateSeller`
 - `seller` may call `rejectDepositor` to reject a depositing address, which will cause any amount deposited by such address to become withdrawable (via `withdraw`) by the rejected depositor. Also enables early mutual termination.
-- `execute` is not permissioned, and thus may be called by any address. If called, the LeXscrow executes and simultaneously releases `totalAmount` to `seller` iff:
+- `execute` is not permissioned, and thus may be called by any address. If called, the LeXscroW executes and simultaneously releases `totalAmount` to `seller` iff:
 
     (1) `buyer` has deposited `totalAmount` + any applicable `fee` net of any `pendingWithdraw` amount,
 
@@ -58,7 +58,7 @@ Unilateral smart escrow contract for (non-fee-on-transfer, non-rebasing) ERC20 t
 
     (3) if there is/are condition(s), such condition(s) is/are satisfied upon the external call in `execute`.
 
-If executed, the LeXscrow is re-usable by parties until the set expiration time. 
+If executed, the LeXscroW is re-usable by parties until the set expiration time. 
 
 Otherwise, amount held in address(this) will be treated according to the code in `checkIfExpired` when called following expiry. If expired, the applicable party must call `withdraw` to receive their tokens.
 
@@ -67,10 +67,10 @@ Otherwise, amount held in address(this) will be treated according to the code in
 Unilateral smart escrow contract for native gas tokens, denominated in 1e18 decimals (wei).
 
 - initialized with a `deposit` amount which can be any amount up to the `totalAmount`, and may be refundable or non-refundable to `buyer` upon expiry
-- `buyer` (or, if an open offer, any address) deposits by sending amount directly to the LeXscrow contract address and thus invoking the `receive` function. The conditional logic rejects any amount in excess of `totalWithFee`
+- `buyer` (or, if an open offer, any address) deposits by sending amount directly to the LeXscroW contract address and thus invoking the `receive` function. The conditional logic rejects any amount in excess of `totalWithFee`
 - if desired, `buyer` may replace its address by passing the new address to `updateBuyer`, and `seller` may do the same with `updateSeller`
 - `seller` may call `rejectDepositor` to reject a depositing address, which will cause any amount deposited by such address to become withdrawable (via `withdraw`) by the rejected depositor. Also enables early mutual termination.
-- `execute` is not permissioned, and thus may be called by any address. If called, the LeXscrow executes and simultaneously releases `totalAmount` to `seller` iff:
+- `execute` is not permissioned, and thus may be called by any address. If called, the LeXscroW executes and simultaneously releases `totalAmount` to `seller` iff:
       
     (1) `buyer` has deposited `totalAmount` + any applicable `fee` net of any `pendingWithdraw` amount,
 
@@ -78,13 +78,13 @@ Unilateral smart escrow contract for native gas tokens, denominated in 1e18 deci
 
     (3) if there is/are condition(s), such condition(s) is/are satisfied upon the external call in `execute`.
 
-If executed, the LeXscrow is re-usable by parties until the set expiration time. 
+If executed, the LeXscroW is re-usable by parties until the set expiration time. 
 
 Otherwise, amount held in address(this) will be treated according to the code in `checkIfExpired` when called following expiry. If expired, the applicable party must call `withdraw` to receive their funds.
 
 ## Other Contracts
 
-- `DoubleTokenLexscrowFactory`, `TokenLexscrowFactory`, and `EthLexscrowFactory` set any applicable fee amounts, fee receiver address, and enable easy deployment of the corresponding LeXscrow type 
+- `DoubleTokenLexscrowFactory`, `TokenLexscrowFactory`, and `EthLexscrowFactory` set any applicable fee amounts, fee receiver address, and enable easy deployment of the corresponding LeXscroW type (including simultaneous deployment of a [Ricardian Tripler](https://github.com/MetaLex-Tech/RicardianTriplerDoubleTokenLeXscroW) and a corresponding LeXscroW where supported)
 
 - `LexscrowConditionManager` is an adaptation of the [BORG-CORE `ConditionManager`](https://github.com/MetaLex-Tech/BORG-CORE/blob/main/src/libs/conditions/conditionManager.sol), without auth/access control (and thus also the ability to add or remove conditions post-deployment) in favor of immutability
     
