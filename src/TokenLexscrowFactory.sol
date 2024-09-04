@@ -14,6 +14,7 @@ import {ICondition, LexscrowConditionManager} from "./libs/LexscrowConditionMana
 /**
  * @title       TokenLexscrowFactory
  *
+ * @author      MetaLeX Labs, Inc.
  *
  * @notice      TokenLexscrow factory contract, which enables a caller of 'deployTokenLexscrow' to deploy a TokenLexscrow with their chosen parameters;
  *              also houses the fee switch, fee basis points, and receiver address controls
