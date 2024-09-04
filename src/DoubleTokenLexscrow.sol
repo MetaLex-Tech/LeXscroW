@@ -132,6 +132,8 @@ abstract contract ReentrancyGuard {
 /**
  * @title       DoubleTokenLexscrow
  *
+ * @author      MetaLeX Labs, Inc.
+ *
  * @notice      Non-custodial bilateral smart escrow contract for non-rebasing ERC20 tokens, supporting:
  *      deposit tokens via approve+transfer or EIP2612 permit signature
  *      identified parties or open offer (party that deposits totalAmount1 of token1 becomes 'buyer', and vice versa)
