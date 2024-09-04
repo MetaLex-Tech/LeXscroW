@@ -46,7 +46,6 @@ interface IReceipt {
 
 /// @notice Solady's SafeTransferLib 'SafeTransfer()' and 'SafeTransferFrom()'.  Extracted from library and pasted for convenience, transparency, and size minimization.
 /// @author Solady (https://github.com/Vectorized/solady/blob/main/src/utils/SafeTransferLib.sol)
-/// Licenses copied below
 /// @dev implemented as abstract contract rather than library for size/gas reasons
 abstract contract SafeTransferLib {
     /// @dev The ERC20 `transfer` has failed.
@@ -106,7 +105,6 @@ abstract contract SafeTransferLib {
 }
 
 /// @notice Gas-optimized reentrancy protection for smart contracts.
-/// @author Solbase (https://github.com/Sol-DAO/solbase/blob/main/src/utils/ReentrancyGuard.sol), license copied below
 abstract contract ReentrancyGuard {
     /// @dev Equivalent to: `uint72(bytes9(keccak256("_REENTRANCY_GUARD_SLOT")))`.
     /// 9 bytes is large enough to avoid collisions with lower slots, but not too large to result in excessive bytecode bloat.
@@ -134,7 +132,9 @@ abstract contract ReentrancyGuard {
 /**
  * @title       TokenLexscrow
  *
- * @notice non-custodial smart escrow contract for non-rebasing ERC20 tokens on Ethereum Mainnet, supporting:
+ * @author      MetaLeX Labs, Inc.
+ *
+ * @notice      non-custodial smart escrow contract for non-rebasing ERC20 tokens on Ethereum Mainnet, supporting:
  * partial or full deposit amount
  * refundable or non-refundable deposit upon expiry
  * deposit via transfer or EIP2612 permit signature
@@ -143,7 +143,7 @@ abstract contract ReentrancyGuard {
  * optional conditions for execution (contingent execution based on oracle-fed external data value, or any conditions within the LexscrowConditionManager spec)
  * buyer and seller addresses replaceable by applicable party
  *
- * @dev adapted from TokenLocker (https://github.com/ChainLockerLLC/smart-contracts/blob/main/src/TokenLocker.sol). Contract executes and releases 'totalAmount' to 'seller' iff:
+ * @dev         Contract executes and releases 'totalAmount' to 'seller' iff:
  * (1) erc20.balanceOf(address(this)) - 'pendingWithdraw' >= 'totalWithFee'
  * (2) 'expirationTime' > block.timestamp
  * (3) any condition(s) are satisfied

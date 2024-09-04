@@ -13,8 +13,9 @@ import {ICondition, LexscrowConditionManager} from "./libs/LexscrowConditionMana
 
 /**
  * @title       DoubleTokenLexscrowFactory
- **/
-/**
+ *
+ * @author      MetaLeX Labs, Inc.
+ *
  * @notice      DoubleTokenLexscrow factory contract, which enables a caller of 'deployDoubleTokenLexscrow' to deploy a DoubleTokenLexscrow with their chosen parameters;
  *              also houses the fee switch, fee basis points, and receiver address controls
  **/
