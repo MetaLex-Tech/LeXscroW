@@ -71,7 +71,9 @@ abstract contract ReentrancyGuard {
 /**
  * @title       EthLexscrow
  *
- * @notice non-custodial smart escrow contract for ETH-denominated transaction on Ethereum Mainnet, supporting:
+ * @author      MetaLeX Labs, Inc.
+ *
+ * @notice      non-custodial smart escrow contract for ETH-denominated transaction on Ethereum Mainnet, supporting:
  * partial or full deposit amount
  * refundable or non-refundable deposit upon expiry
  * seller-identified buyer or open offer
@@ -79,8 +81,7 @@ abstract contract ReentrancyGuard {
  * optional conditions for execution (contingent execution based on signatures, time, oracle-fed external data value, and more)
  * buyer and seller addresses replaceable by applicable party
  *
- * @dev adapted from EthLocker (https://github.com/ChainLockerLLC/smart-contracts/blob/main/src/EthLocker.sol)
- * executes and releases 'totalAmount' to 'seller' iff:
+ * @dev         executes and releases 'totalAmount' to 'seller' iff:
  * (1) address(this).balance - 'pendingWithdraw' >= 'totalAmount'
  * (2) 'expirationTime' > block.timestamp
  * (3) any condition(s) are satisfied
