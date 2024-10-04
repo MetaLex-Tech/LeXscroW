@@ -1,0 +1,230 @@
+# Use your LeXscroW
+
+For each LeXscroW pattern, the usage flow is simple: deposit, then if properly deposited, `expirationTime` has not been reached, and any applicable conditions are met (checked via the immutable `LexscrowConditionManager` contract) at the time of the `execute()` call, any address can execute the LeXscroW. 
+
+Parties may optionally replace their own addresses, mutually elect to terminate the LeXscroW early, and re-use their LeXscroW. All deployment parameters other than `buyer` and `seller` addresses are immutable. 
+
+A more detailed examination of each LeXscroW and its functions:
+
+---
+### DoubleTokenLexscrow
+
+Non-custodial bilateral smart escrow contract for non-rebasing non-fee-on-transfer ERC20 tokens, with optional conditions for execution. Parties may be set at deployment or open to any depositor if `openOffer` is `true` (the address that deposits `totalAmount1` of `token1` becomes `buyer`, and vice versa).
+
+The LeXscroW executes and simultaneously releases `totalAmount1` to `seller` and `totalAmount2` to `buyer` IFF:
+
+1. `totalAmount1` + `fee1` (if any) of `token1` and `totalAmount2` + `fee2` (if any) of `token2` have been deposited
+2. `token1.balanceOf(address(this))` >= `totalAmount1` + `fee1` && `token2.balanceOf(address(this))` >= `totalAmount2` + `fee2`
+3. `expirationTime` > `block.timestamp`
+4. if there is/are condition(s), such condition(s) is/are satisfied according to the applicable `LexscrowConditionManager`
+
+If executed, the contract is re-usable until `expirationTime`. Otherwise, deposited amounts are returned to the respective parties if `expirationTime` is reached, or if both parties elect to terminate early via `electToTerminate()`. If `openOffer` is `false`, while it is NOT ADVISABLE for security purposes as it bypasses the conditional checks in the contract, parties may simply transfer their tokens to the LeXscroW address directly.
+
+#### depositTokensWithPermit()
+
+Enables an address to deposit `token1` or `token2` via EIP2612 `permit()`. If `openOffer` is `true` and no party has previously deposited the specified token, `_depositor` will be assigned to `buyer` or `seller` as applicable.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_token1Deposit` | bool | if `true`, depositing `token1`; if `false`, depositing `token2` |
+|`_depositor`| address | the address from which the `_amount` of tokens are to be transferred; if `openOffer` is `false`, must == `buyer` if `_token1Deposit` is `true` or == `seller` if `_token1Deposit` is `false`|
+|`_amount`| uint256 | amount of tokens to be deposited in the LeXscroW from the `_depositor`. If `openOffer` is `true`, `_amount` must == `totalAmount1` + `fee1` or `totalAmount2` + `fee2` as applicable. If `_amount` would lead to a surplus of tokens in the LeXscroW, the function either reduces `_amount` by the surplus, or reverts if `_amount` is less than the surplus (i.e. the deposit was already completed)|
+|`_deadline` | uint256 | deadline for usage of the permit approval signature |
+|`v` | uint8 | ECDSA sig parameter |
+|`r` | bytes32 | ECDSA sig parameter |
+|`s` | bytes32 | ECDSA sig parameter|
+
+#### depositTokens()
+
+Enables `msg.sender` to deposit `token1` or `token2`, provided the `msg.sender` has approved the LeXscroW contract address in the proper token contract for `_amount` prior to calling this function. If `openOffer` is `false`, `msg.sender` must be `buyer` to deposit `token1` or must be `seller` to deposit `token2`. If `openOffer` is `true` and no party has previously deposited the specified token, `msg.sender` will be assigned to `buyer` or `seller` as applicable.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_token1Deposit` | bool | if `true`, depositing `token1`; if `false`, depositing `token2` |
+|`_amount`| uint256 | amount of tokens to be deposited in the LeXscroW from the `_depositor`. If `openOffer` is `true`, `_amount` must == `totalAmount1` + `fee1` or `totalAmount2` + `fee2` as applicable. If `_amount` would lead to a surplus of tokens in the LeXscroW, the function either reduces `_amount` by the surplus, or reverts if `_amount` is less than the surplus (i.e. the deposit was already completed)|
+
+
+#### updateSeller()
+
+For `seller` to update its own address; cannot be address(0) nor the same as the `buyer` address.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_seller`| address | new address of `seller` |
+
+#### updateBuyer()
+
+For `buyer` to update its own address; cannot be address(0) nor the same as the `seller` address.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_buyer`| address | new address of `buyer` |
+
+#### checkIfExpired()
+
+Any caller may check if this LeXscroW's `expirationTime` has been reached or if `isExpired` is `true`; if either is true, the LeXscroW's balance of `token1` is transferred (returned) to the `buyer`, and `token2` to the `seller`. Returns `isExpired`.
+
+#### electToTerminate() 
+
+Allows the parties a mutual early termination and return of their deposited tokens. If both `buyer` and `seller` pass `true` to this function, `isExpired` will be set to `true`, and this function will call `checkIfExpired()`, returning any deposited tokens to the proper party. Note if the early termination occurs, this LeXscroW will not be reusable due to the `isExpired` variable.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_electToTerminate`| bool | whether the caller elects to terminate this LeXscrow early (`true`); this election is revocable by such caller passing `false` |
+
+#### execute() 
+
+Callable by any address, this function checks if the tokens are all properly deposited in the LeXscroW (`totalAmount1` + `fee1` and `totalAmount2` + `fee2`), if there are condition(s) that all are satisfied, and `expirationTime` has not been met. If so, the LeXscroW executes and transfers `totalAmount1` of `token1` to `seller` and `totalAmount2` of `token2` to `buyer`, and any fees to `receiver`.
+
+#### getReceipt()
+
+Convenience function to return a USD value receipt if an oracle data feed is properly assigned in the `receipt` contract for the submitted token. Purely informational-- has no bearing on execution and simply returns a calculation. Returns `(uint256 _paymentId, uint256 _usdValue)`.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_token1` | bool | whether caller is seeking a receipt for `token1` if `true`, yes, if false, seeking receipt for `token2` |
+|`_tokenAmount` | uint256 | amount of tokens for which caller is seeking the total USD value receipt |
+
+---
+### TokenLexscrow
+
+Non-custodial smart escrow contract for non-rebasing non-fee-on-transfer ERC20 tokens, with optional conditions for execution, and option for a non-, partially-, or fully-refundable `deposit` amount. Parties may be set at deployment or open to any depositor if `openOffer` is `true` (the address that deposits `totalAmount` of `erc20` becomes `buyer`).
+
+The LeXscroW executes and simultaneously releases `totalAmount` to `seller` IFF:
+1. `totalWithFee` (if any) of `erc20` has been deposited
+2. `erc20.balanceOf(address(this))` >= `totalWithFee` 
+3. `expirationTime` > `block.timestamp`
+4. if there is/are condition(s), such condition(s) is/are satisfied according to the applicable `LexscrowConditionManager`
+
+If executed, the contract is re-usable until `expirationTime`. Otherwise, if `expirationTime` is reached, if `refundable` is `false`, the `deposit` becomes withdrawable by `seller` and the remainder becomes withdrawable by `buyer`; if `refundable` is `true`, the full balance is withdrawable by `buyer`. If `seller` wishes to reject a `buyer` or if both parties elect to terminate early, `seller` may call `rejectDepositor()`. If `openOffer` is `false`, while it is NOT ADVISABLE for security purposes as it bypasses the conditional checks in the contract, `buyer` may simply transfer their tokens to the LeXscroW address directly.
+
+#### depositTokensWithPermit()
+
+Enables an address to deposit `erc20` via EIP2612 `permit()`. If `openOffer` is `true` and no party has previously deposited the specified token, `_depositor` will be assigned to `buyer`.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_depositor`| address | the address from which the `_amount` of tokens are to be transferred; if `openOffer` is `false`, must == `buyer`|
+|`_amount`| uint256 | amount of tokens to be deposited in the LeXscroW from the `_depositor`. If `openOffer` is `true`, `_amount` must == `totalWithFee`. If `_amount` would lead to a surplus of tokens in the LeXscroW, the function either reduces `_amount` by the surplus, or reverts if `_amount` is less than the surplus (i.e. the deposit was already completed)|
+|`_deadline` | uint256 | deadline for usage of the permit approval signature |
+|`v` | uint8 | ECDSA sig parameter |
+|`r` | bytes32 | ECDSA sig parameter |
+|`s` | bytes32 | ECDSA sig parameter|
+
+#### depositTokens()
+
+Enables `msg.sender` to deposit `erc20`, provided the `msg.sender` has approved the LeXscroW contract address in the `tokenContract` for `_amount` prior to calling this function. If `openOffer` is `false`, `msg.sender` must be `buyer`. If `openOffer` is `true` and no party has previously deposited, `msg.sender` will be assigned to `buyer`.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_amount`| uint256 | amount of tokens to be deposited in the LeXscroW from the `_depositor`. If `openOffer` is `true`, `_amount` must == `totalWithFee`. If `_amount` would lead to a surplus of tokens in the LeXscroW, the function either reduces `_amount` by the surplus, or reverts if `_amount` is less than the surplus (i.e. the deposit was already completed)|
+
+
+#### updateSeller()
+
+For `seller` to update its own address; cannot be address(0) nor the same as the `buyer` address.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_seller`| address | new address of `seller` |
+
+#### updateBuyer()
+
+For `buyer` to update its own address; cannot be address(0) nor the same as the `seller` address. Transfers the old buyer's `amountDeposited` to the new `buyer`, and deletes the old buyer's `amountDeposited`.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_buyer`| address | new address of `buyer` |
+
+#### checkIfExpired()
+
+Any caller may check if this LeXscroW's `expirationTime` has been reached or if `isExpired` is `true`. If either is true, if `refundable` is `false`, update `seller`'s `amountWithdrawable` to be the `deposit` amount before updating `buyer`'s `amountWithdrawable` for the remainder. If `refundable` is `true`, update `buyer`'s `amountWithdrawable` to be the entire balance of `erc20` in the LeXscroW. Returns `isExpired`.
+
+#### rejectDepositor() 
+
+For `seller` to reject the `buyer`'s deposit and cause their deposited amount to be added to the buyer's `amountWithdrawable`, also preventing the `buyer` from depositing again. This function also provides a mechanism for mutual termination. If `openOffer` is `false`, `buyer` will need to call `updateBuyer()` to choose another address and re-deposit tokens. If `openOffer` is `true`, a new depositing address must be used.
+
+#### execute() 
+
+Callable by any address, this function checks if the tokens are properly deposited in the LeXscroW (`totalWithFee`), if there are condition(s) that all are satisfied, and `expirationTime` has not been met. If so, the LeXscroW executes and transfers `totalAmount` of `erc20` to `seller`, and any fees to `receiver`.
+
+#### getReceipt()
+
+Convenience function to return a USD value receipt if an oracle data feed is properly assigned in the `receipt` contract for the `tokenContract`. Purely informational-- has no bearing on execution and simply returns a calculation. Returns `(uint256 _paymentId, uint256 _usdValue)`.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_tokenAmount` | uint256 | amount of tokens for which caller is seeking the total USD value receipt |
+
+#### withdraw()
+
+Allows `msg.sender` to withdraw its full `amountWithdrawable` of `tokenContract` tokens.
+
+---
+### EthLexscrow
+
+Non-custodial smart escrow contract for native gas tokens, with optional conditions for execution, and option for a non-, partially-, or fully-refundable `deposit` amount. Parties may be set at deployment or open to any depositor if `openOffer` is `true` (the address that deposits `totalAmount` becomes `buyer`).
+
+The LeXscroW executes and simultaneously releases `totalAmount` to `seller` IFF:
+1. `totalWithFee` (if any) of wei has been deposited
+2. the wei balance of the LeXscroW >= `totalWithFee` 
+3. `expirationTime` > `block.timestamp`
+4. if there is/are condition(s), such condition(s) is/are satisfied according to the applicable `LexscrowConditionManager`
+
+If executed, the contract is re-usable until `expirationTime`. Otherwise, if `expirationTime` is reached, if `refundable` is `false`, the `deposit` becomes withdrawable by `seller` and the remainder becomes withdrawable by `buyer`; if `refundable` is `true`, the full balance is withdrawable by `buyer`. If `seller` wishes to reject a `buyer` or if both parties elect to terminate early, `seller` may call `rejectDepositor()`. Deposits are made by sending wei directly to the `EthLexscrow` contract address, and are handled by the `receive()` code.
+
+#### receive()
+
+`msg.sender` deposits wei by sending it directly to the contract address of the EthLexscrow, prompting the `receive()` function. If `openOffer` is `false`, any address may be `msg.sender` (enabling composability) but the `buyer`'s `amountDeposited` will be credited. If `openOffer` is `true` and no party has previously deposited, `msg.sender` will be assigned to `buyer`.
+
+If `openOffer` is `true`, the contract's balance inclusive of `msg.value` must == `totalWithFee`. If `msg.value` would lead to a surplus of tokens in the LeXscroW (i.e. the deposit was already completed), the transaction will revert.
+
+
+#### updateSeller()
+
+For `seller` to update its own address; cannot be address(0) nor the same as the `buyer` address.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_seller`| address | new address of `seller` |
+
+#### updateBuyer()
+
+For `buyer` to update its own address; cannot be address(0) nor the same as the `seller` address. Transfers the old buyer's `amountDeposited` to the new `buyer`, and deletes the old buyer's `amountDeposited`.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_buyer`| address | new address of `buyer` |
+
+#### checkIfExpired()
+
+Any caller may check if this LeXscroW's `expirationTime` has been reached or if `isExpired` is `true`. If either is true, if `refundable` is `false`, update `seller`'s `amountWithdrawable` to be the `deposit` amount before updating `buyer`'s `amountWithdrawable` for the remainder. If `refundable` is `true`, update `buyer`'s `amountWithdrawable` to be the entire (non-pending withdraw) balance of the LeXscroW. Returns `isExpired`.
+
+#### rejectDepositor() 
+
+For `seller` to reject the `buyer`'s deposit and cause their deposited amount to be added to the buyer's `amountWithdrawable`, also preventing the `buyer` from depositing again. This function also provides a mechanism for mutual termination. If `openOffer` is `false`, `buyer` will need to call `updateBuyer()` to choose another address and re-deposit. If `openOffer` is `true`, a new depositing address must be used.
+
+#### execute() 
+
+Callable by any address, this function checks if the LeXscroW is properly fully deposited (`totalWithFee`), if there are condition(s) that all are satisfied, and `expirationTime` has not been met. If so, the LeXscroW executes and transfers `totalAmount` of wei to `seller`, and any fees to `receiver`.
+
+#### getReceipt()
+
+**ETH Mainnet only** -- convenience function to return a USD value receipt if an oracle data feed is properly assigned in the `receipt` contract for the native gas token. Purely informational-- has no bearing on execution and simply returns a calculation. Returns `(uint256 _paymentId, uint256 _usdValue)`.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+|`_weiAmount` | uint256 | amount of wei for which caller is seeking the total USD value receipt |
+
+#### withdraw()
+
+Allows `msg.sender` to withdraw its full `amountWithdrawable` of wei.
+
+
+---
+
+### Notes
+
+The lack of a two-step address change in the `updateSeller()` and `updateBuyer()` functions is intentional, as it enables either party to designate any kind of address (such as an auto-offramping custodied contract address) as recipient because such a replacement address does not need to call a function to confirm its designation. All contracts have ability to terminate early and return deposits (`electToTerminate()` for both parties in `DoubleTokenLexscrow`, and `rejectDepositor()` for `seller` to unilaterally invoke in `TokenLexscrow` and `EthLexscrow`) in the event of mistaken address substitution.
+
+The nature of conditions (by design) is that they may not be the same for consecutive executions of a re-used LeXscroW, for example a price condition.

@@ -1,0 +1,54 @@
+```
+██╗     ███████╗██╗   ██╗███████╗███████╗██████╗ ███████╗██╗    ██╗
+██║     ██╔════╝ ██║ ██╔╝██╔════╝██╔════╝██╔══██╗██╔══██║██║    ██║
+██║     █████╗    ╚██╔╝  ███████╗██║     ██████╔╝██║  ██║██║ █╗ ██║
+██║     ██╔══╝   ██╔╝██╗ ╚════██║██║     ██╔══██╗██║  ██║██║███╗██║
+███████╗███████╗██║   ██╗███████║███████╗██║  ██║███████║╚███╔███╔╝
+╚══════╝╚══════╝╚═╝   ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝ ╚══╝╚══╝   
+///Immutable, non-custodial, conditional smart contract escrow.
+   ╚═══════╝  ╚═╝ ╚═══════╝   ╚════════╝ ╚═══╝ ╚══════╝ ╚════╝
+```
+
+
+# Overview
+
+## Welcome to the LeXscroW documentation!
+
+LeXscroW is a protocol for user-deployed immutable, non-custodial, and optionally-conditioned escrows, transfers, and swaps on EVM networks. 
+
+There are currently three main types of LeXscroWs:
+
+**DoubleTokenLexscrow**: escrowed simultaneous exchange of ERC20 tokens. 
+
+**TokenLexscrow**: escrowed ERC20 token transfer.
+
+**EthLexscrow**: escrowed native gas token transfer, such as wei.
+
+## Audits
+
+LeXscroW has been audited by [MixBytes](https://github.com/mixbytes/audits_public/blob/master/MetaLeX/LeXscrow/Metalex%20Lexscrow%20Security%20Audit%20Report.pdf).
+
+## Documentation Directory
+
+```ml
+Overview
+├─ Welcome
+├─ Audits
+├─ Directory
+Design
+├─ LeXscroW Types — "Types of LeXscroWs and universal features"
+├─ Conditions — "Syntax and deployment flow for conditions to LeXscroW execution"
+Deploy
+├─ Factory Contracts
+   ├─ DoubleTokenLexscrowFactory — "DoubleTokenLexscrow deployment parameters"
+   ├─ TokenLexscrowFactory — "TokenLexscrow deployment parameters"
+   ├─ EthLexscrowFactory — "EthLexscrow deployment parameters"
+├─ Deployment Requirements — "Conditional protections and considerations"
+Use
+├─ DoubleTokenLexscrow — "DoubleTokenLexscrow function and param descriptions"
+├─ TokenLexscrow — "TokenLexscrow function and param descriptions"
+├─ EthLexscrow — "EthLexscrow function and param descriptions"
+└─ Notes
+```
+
+Let's get started:

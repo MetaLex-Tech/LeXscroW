@@ -1,0 +1,59 @@
+# Design your LeXscroW
+
+A LeXscroW user must first determine which of the three LeXscroW types is proper for their intended use, and whether to codify a condition or multiple conditions to the execution of such LeXscroW.
+
+## LeXscroW Types
+
+`DoubleTokenLexscrow`: escrowed swap of two different non-fee-on-transfer, non-rebasing ERC20 tokens
+
+`TokenLexscrow`: escrowed transfer of non-fee-on-transfer, non-rebasing ERC20 tokens
+
+`EthLexscrow`: escrowed transfer of native gas tokens
+
+
+All LeXscroW types have the following features:
+
+- Ownerless unique contract deployment
+- Optional immutable conditions for execution, including signatures, time, oracle-fed data, and more
+- Specified part(ies), or allow any address to become a counterparty
+- Ability for parties to replace their own address; may be an EOA or a contract
+- Option for mutual early termination 
+- Expiration time denominated in Unix time
+- Re-usability until expiration
+
+## Conditions 
+
+Condition structs have the following syntax:
+
+    enum Logic {
+        AND,
+        OR
+    }
+
+    struct Condition {
+        address condition;
+        Logic op;
+    }
+
+`condition` is the contract address of the elected condition contract. MetaLeX has several condition contract types [available in the borg-core repository](https://github.com/MetaLex-Tech/borg-core/tree/main/src/libs/conditions), which are fully compatible with LeXscroW. Users may also elect to use their own custom condition contracts. 
+
+All condition contracts MUST have a `checkCondition` function which conforms to the following interface:
+
+    interface ICondition {
+        function checkCondition(
+            address _contract,
+            bytes4 _functionSignature,
+            bytes memory data
+        ) external view returns (bool);
+    }
+
+The `Logic` struct member determines whether the given `Condition` or any other `Condition` must be satisfied in order for the LeXscroW to execute (`OR`); or alternatively if the given `Condition` must be satisfied (`AND`) for the LeXscroW to execute
+
+**All condition contracts to be included in the applicable LeXscroW must be deployed BEFORE the LeXscroW itself**
+
+The conditions are passed either:
+
+1. *via factory deployment*, as an array of `Condition` structs in the applicable LeXscroW factory contract's deploy function which will deploy a [LexscrowConditionManager](https://github.com/MetaLex-Tech/LeXscrow/blob/main/src/libs/LexscrowConditionManager.sol) accordingly, or 
+2. *via direct LeXscroW constructor*, by first deploying a `LexscrowConditionManager.sol` contract supplying the array of `Condition` structs, and supplying the `LexscrowConditionManager` contract address to the LeXscroW's constructor.
+
+In both methods, the `LexscrowConditionManager`'s conditions are immutable; therefore once the LeXscroW has been deployed, the conditions to its execution are immutable.
