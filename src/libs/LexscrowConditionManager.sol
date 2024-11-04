@@ -38,14 +38,24 @@ interface ICondition {
     ) external view returns (bool);
 }
 
-/// @dev a stripped-down version of the BORG-CORE ConditionManager (https://github.com/MetaLex-Tech/BORG-CORE/blob/main/src/libs/conditions/conditionManager.sol),
-/// removing auth/access control (and thus also the ability to add or remove conditions post-deployment) in favor of immutability
+/**
+ * @title       LexscrowConditionManager
+ *
+ * @author      MetaLeX Labs, Inc.
+ *
+ * @notice      Immutable contract to implement multiple conditions, designed for LeXscroWs
+ *
+ * @dev         A stripped-down version of the BORG-CORE ConditionManager (https://github.com/MetaLex-Tech/BORG-CORE/blob/main/src/libs/conditions/conditionManager.sol),
+ *              removing auth/access control (and thus also the ability to add or remove conditions post-deployment) in favor of immutability.
+ **/
 contract LexscrowConditionManager {
+    /// @notice Logic enum, either `AND` (all conditions must be true) or `OR` (only one of the conditions must be true)
     enum Logic {
         AND,
         OR
     }
 
+    /// @notice Condition struct to store the condition contract address and the Logic operator enum for each condition
     struct Condition {
         address condition;
         Logic op;
@@ -58,13 +68,12 @@ contract LexscrowConditionManager {
     error LexscrowConditionManager_DuplicateCondition();
     error LexscrowConditionManager_InvalidCondition();
 
-    /// @param _conditions array of Condition structs, which for each element contains:
-    /// op: Logic enum, either 'AND' (all conditions must be true) or 'OR' (only one of the conditions must be true)
+    /// @param _conditions array of `Condition` structs, which for each element contains:
+    /// op: `Logic` enum, either 'AND' (all conditions must be true) or 'OR' (only one of the conditions must be true)
     /// condition: address of the condition contract
     /// @dev reverts if a supplied condition does not properly implement the `checkCondition` interface or if duplicate conditions are passed;
     /// IF A LEXSCROW WITH CONDITIONS IS RE-USED, THE RETURNS FROM THE APPLICABLE CONDITIONS MAY CHANGE IN SUBSEQUENT EXECUTES -- this
-    /// is by design as, for example, a dynamic condition such as an oracle-fed value or time condition is likely to be different for
-    /// subsequent executes
+    /// is by design as, for example, a dynamic condition such as an oracle-fed value or time condition is likely to be different for subsequent executes
     constructor(Condition[] memory _conditions) payable {
         for (uint256 i = 0; i < _conditions.length; ) {
             address _currentCondition = _conditions[i].condition;
@@ -80,9 +89,9 @@ contract LexscrowConditionManager {
         }
     }
 
-    /// @notice iterates through the 'conditions' array, calling each 'condition' contract's 'checkCondition()' function
+    /// @notice iterates through the `conditions` array, calling each 'condition' contract's `checkCondition()` function
     /// @param data any data passed to the condition contract
-    /// @return result boolean of whether all conditions (accounting for each Condition's 'Logic' operator) have been satisfied
+    /// @return result boolean of whether the necessary combination of conditions (if applicable, accounting for each Condition's 'Logic' operator) have been satisfied
     function checkConditions(bytes memory data) public view returns (bool result) {
         if (conditions.length == 0) return true;
         else {

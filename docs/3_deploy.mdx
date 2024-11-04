@@ -3,7 +3,9 @@
 ## Factory Contracts
 
 
-Each LeXscroW type has a corresponding factory contract for easy deployments. If any conditions are properly specified by the user, the factories will deploy a new `LexscrowConditionManager` and supply its address to the LeXscroW's constructor for the user.
+Each LeXscroW type has a corresponding factory contract for easy deployments. 
+
+If any conditions are properly passed by the user, the applicable factory will deploy a new `LexscrowConditionManager` and supply its address to the LeXscroW's constructor for the user as part of the deployment flow.
 
 ---
 ### DoubleTokenLexscrowFactory
@@ -12,14 +14,14 @@ To deploy a DoubleTokenLexscrow, a user may call `deployDoubleTokenLexscrow()`, 
 
 | Param  | Type | Description 
 | :---:  |:----:|  :---: |
-|`_openOffer`| bool | whether the DoubleTokenLexscrow is open to any prospective `buyer` and `seller`|
+|`_openOffer`| bool | whether the DoubleTokenLexscrow is open to any prospective `buyer` and `seller` (`true`) or is restricted to the passed `_buyer` and `_seller` addresses (`false`)|
 |`_totalAmount1`| uint256 | total amount of `tokenContract1` which will be deposited in the DoubleTokenLexscrow, ultimately intended for `seller`|
 |`_totalAmount2`| uint256 | total amount of `tokenContract2` which will be deposited in the DoubleTokenLexscrow, ultimately intended for `buyer`|
 |`_expirationTime`| uint256 | time in seconds (Unix time) at which the LeXscroW expires and can no longer be executed. Each party may withdraw their deposited tokens following this time|
-|`_seller` | address | the depositor of `token2` and recipient of `token1` if the contract executes. Ignored if 'openOffer' is `true`|
-|`_buyer` | address | the depositor of `token1` and recipient of `token2` if the contract executes. Ignored if 'openOffer' is `true`|
-|`_tokenContract1` | address | contract address for the ERC20 token used in the DoubleTokenLexscrow as 'token1'; fee-on-transfer and rebasing tokens are NOT SUPPORTED as the applicable deposit & fee amounts are immutable|
-|`_tokenContract2` | address | contract address for the ERC20 token used in the DoubleTokenLexscrow as 'token2'; fee-on-transfer and rebasing tokens are NOT SUPPORTED as the applicable deposit & fee amounts are immutable|
+|`_seller` | address | the depositor of `token2` and recipient of `token1` if the contract executes. Ignored if `openOffer` is `true`|
+|`_buyer` | address | the depositor of `token1` and recipient of `token2` if the contract executes. Ignored if `openOffer` is `true`|
+|`_tokenContract1` | address | contract address for the ERC20 token used in the DoubleTokenLexscrow as `token1`; fee-on-transfer and rebasing tokens are NOT SUPPORTED as the applicable deposit & fee amounts are immutable|
+|`_tokenContract2` | address | contract address for the ERC20 token used in the DoubleTokenLexscrow as `token2`; fee-on-transfer and rebasing tokens are NOT SUPPORTED as the applicable deposit & fee amounts are immutable|
 |`_receipt` | address | contract address for Receipt.sol contract; optional informational feature|
 |`_conditions` | `LexscrowConditionManager.Condition[]` | array of `Condition` structs, see the Design section for proper syntax|
 
@@ -36,12 +38,12 @@ To deploy a TokenLexscrow, a user may call `deployTokenLexscrow()`, supplying:
 | Param  | Type | Description 
 | :---:  |:----:|  :---: |
 |`_refundable` | bool | whether the `deposit` is refundable to the `buyer` following `expirationTime`|
-|`_openOffer` | bool | whether the TokenLexscrow is open to any prospective `buyer`|
+|`_openOffer` | bool | whether the TokenLexscrow is open to any prospective `buyer` (`true`) or is restricted to the passed `_buyer` address (`false`)|
 |`_deposit` | uint256 | deposit amount in tokens (remember decimals), which must be <= `_totalAmount` (< for partial deposit, == for full deposit)|
 |`_totalAmount` | uint256 | total amount of `tokenContract` which will be deposited in the TokenLexscrow, ultimately intended for `seller`|
 |`_expirationTime` | uint256 | time in seconds (Unix time) at which the LeXscroW expires and can no longer be executed. Withdrawable amount of deposited tokens will depend whether the LeXscroW is refundable, and on the `deposit` amount|
 |`_seller` | address | the seller's address, recipient of the `totalAmount` of tokens if the contract executes and the `deposit` if the LeXscroW is not refundable|
-|`_buyer` | address | the buyer's address, depositor of the `totalAmount` of tokens. Ignored if 'openOffer' is `true`. If the `expirationTime` is met and the LeXscroW is refundable, may withdraw all deposited tokens; if the LeXscroW is not refundable, may withdraw deposited amount minus the `deposit`|
+|`_buyer` | address | the buyer's address, depositor of the `totalAmount` of tokens. Ignored if `openOffer` is `true`. If the `expirationTime` is met and the LeXscroW is refundable, may withdraw all deposited tokens; if the LeXscroW is not refundable, may withdraw deposited amount minus the `deposit`|
 |`_tokenContract` | address | contract address for the ERC20 token used in the TokenLexscrow; fee-on-transfer and rebasing tokens are NOT SUPPORTED as the applicable deposit & fee amounts are immutable|
 |`_conditions` | `LexscrowConditionManager.Condition[]` | array of `Condition` structs, see the Design section for proper syntax|
 
@@ -59,7 +61,7 @@ To deploy an EthLexscrow, a user may call `deployEthLexscrow()`, supplying:
 | Param  | Type | Description 
 | :---:  |:----:|  :---: |
 |`_refundable` | bool | whether the `deposit` is refundable to the `buyer` following `expirationTime`|
-|`_openOffer` | bool | whether the EthLexscrow is open to any prospective `buyer`|
+|`_openOffer` | bool | whether the EthLexscrow is open to any prospective `buyer` (`true`) or is restricted to the passed `_buyer` address (`false`)|
 |`_deposit` | uint256 | deposit amount in wei, which must be <= `_totalAmount` (< for partial deposit, == for full deposit) |
 |`_totalAmount` | uint256 | total amount of wei which will be deposited in the EthLexscrow, ultimately intended for `seller`|
 |`_expirationTime` | uint256 | time in seconds (Unix time) at which the LeXscroW expires and can no longer be executed. Withdrawable amount of deposited wei will depend whether the LeXscroW is refundable, and on the `deposit` amount|
@@ -94,7 +96,7 @@ The `receiver` may call `updateReceiver()` to propose a new `receiver` address, 
 | :---:  |:----:|  :---: |
 |`_newReceiver` | address | the pending receiver's address, assigned to `_pendingReceiver`|
 
-The `_pendingReceiver` must then call `acceptReceiverRole()' in order to accept the `receiver` role.
+The `_pendingReceiver` must then call `acceptReceiverRole()` in order to accept the `receiver` role.
 
 ---
 
@@ -134,5 +136,5 @@ While `DoubleTokenLexscrow` and `TokenLexscrow`'s constructors perform minimal E
 
 Similarly, `LexscrowConditionManager`'s constructor prevents duplicate conditions and checks that each condition properly supports the `ICondition` interface, but each user MUST verify its supplied condition contracts are compliant and proper for their intended usage.
 
-All amounts are raw amounts: there are no calls to a token contract's `decimals()`, and EthLexscrow is denominated in wei.
+All amounts are raw amounts: there are no calls to a token contract's `decimals()`, and EthLexscrow is denominated in wei (18 decimals).
 
