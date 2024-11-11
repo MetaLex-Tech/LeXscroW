@@ -23,8 +23,10 @@ All LeXscroW types have the following features:
 
 ## Conditions 
 
-Condition structs have the following syntax:
+**All condition contracts upon which a LeXscroW is intended to be contingent must be deployed BEFORE the LeXscroW itself.**
 
+Condition structs have the following syntax:
+``` solidity
     enum Logic {
         AND,
         OR
@@ -34,11 +36,11 @@ Condition structs have the following syntax:
         address condition;
         Logic op;
     }
-
+```
 `condition` is the contract address of the elected condition contract. MetaLeX has several condition contract types [available in the borg-core repository](https://github.com/MetaLex-Tech/borg-core/tree/main/src/libs/conditions), which are fully compatible with LeXscroW. Users may also elect to use their own custom condition contracts. 
 
 All condition contracts MUST have a `checkCondition` function which conforms to the following interface:
-
+``` solidity
     interface ICondition {
         function checkCondition(
             address _contract,
@@ -46,14 +48,30 @@ All condition contracts MUST have a `checkCondition` function which conforms to 
             bytes memory data
         ) external view returns (bool);
     }
-
+```
 The `Logic` struct member determines whether the given `Condition` or any other `Condition` must be satisfied in order for the LeXscroW to execute (`OR`); or alternatively if the given `Condition` must be satisfied (`AND`) for the LeXscroW to execute
 
-**All condition contracts to be included in the applicable LeXscroW must be deployed BEFORE the LeXscroW itself**
+Once deployed, conditions are not exclusive to a given LeXscroW (`checkConditions()` has no access control), so different LeXscroWs may share a `LexscrowConditionManager` or individual `condition` if so desired. Users must exercise extreme caution in using third party-deployed conditions.
 
 The conditions are passed either:
 
 1. *via factory deployment*, as an array of `Condition` structs in the applicable LeXscroW factory contract's deploy function which will deploy a [LexscrowConditionManager](https://github.com/MetaLex-Tech/LeXscrow/blob/main/src/libs/LexscrowConditionManager.sol) accordingly, or 
 2. *via direct LeXscroW constructor*, by first deploying a `LexscrowConditionManager.sol` contract supplying the array of `Condition` structs, and supplying the `LexscrowConditionManager` contract address to the LeXscroW's constructor.
 
-In both methods, the `LexscrowConditionManager`'s conditions are immutable; therefore once the LeXscroW has been deployed, the conditions to its execution are immutable.
+In both methods, the `LexscrowConditionManager`'s conditions are supplied as an array of `condition` structs to its constructor and are immutable; therefore once the LeXscroW has been deployed, the conditions to its execution are immutable.
+
+### LexscrowConditionManager
+
+LexscrowConditionManager is an immutable contract to implement an arbitrary amount and combination of conditions to execution for LeXscroWs, with a public `checkConditions()` function designed to be called by a LeXscroW's `execute()` function and return a boolean result of condition(s) satisfaction as described below. 
+
+LeXscroW's LexscrowConditionManager is a stripped-down version of the [BORG-CORE ConditionManager](https://github.com/MetaLex-Tech/BORG-CORE/blob/main/src/libs/conditions/conditionManager.sol), removing auth/access control (and thus also the ability to add or remove conditions post-deployment) in favor of immutability. The BORG-CORE ConditionManager may also be compatible for use with LeXscroWs, but users should exercise care in integrating bespoke condition managers and those that do not carry the same level of immutability as LexscrowConditionManager.
+
+#### checkConditions()
+
+Iterates through the `conditions` array, calling each `condition` contract's `checkCondition()` function.
+
+| Param  | Type | Description 
+| :---:  |:----:|  :---: |
+| `data` | bytes | optional param for any data passed to the condition contracts |
+
+Returns `result` boolean of whether the necessary combination of conditions (if applicable, accounting for each Condition's `Logic` operator) have been satisfied.
