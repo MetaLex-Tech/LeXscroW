@@ -2,3 +2,7 @@
 /out
 .env
 /cache
+/broadcast
+/broadcast
+/broadcast/deploy.s.sol/42161/dry-run
+remappings.txt
