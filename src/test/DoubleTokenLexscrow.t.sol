@@ -2,26 +2,18 @@
 
 pragma solidity ^0.8.18;
 
-import "forge-std/Test.sol";
+import "forge-std/src/Test.sol";
 import "src/DoubleTokenLexscrow.sol";
 import "src/libs/LexscrowConditionManager.sol";
 
 interface IBaseCondition {
-    function checkCondition(
-        address _contract,
-        bytes4 _functionSignature,
-        bytes memory data
-    ) external view returns (bool);
+    function checkCondition(address _contract, bytes4 _functionSignature, bytes memory data) external view returns (bool);
 }
 
 contract BaseCondition is IERC165 {
     constructor() {}
 
-    function checkCondition(
-        address _contract,
-        bytes4 _functionSignature,
-        bytes memory data
-    ) public view virtual returns (bool) {}
+    function checkCondition(address _contract, bytes4 _functionSignature, bytes memory data) public view virtual returns (bool) {}
 
     function supportsInterface(bytes4 interfaceId) external view virtual override returns (bool) {
         return interfaceId == type(ICondition).interfaceId || interfaceId == type(IERC165).interfaceId;
@@ -115,35 +107,20 @@ abstract contract ERC20Permit is ERC20 {
     error PermitExpired();
     error InvalidSigner();
 
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        string memory _version,
-        uint8 _decimals
-    ) ERC20(_name, _symbol, _decimals) {
+    constructor(string memory _name, string memory _symbol, string memory _version, uint8 _decimals) ERC20(_name, _symbol, _decimals) {
         hashedDomainName = keccak256(bytes(_name));
         hashedDomainVersion = keccak256(bytes(_version));
         initialChainId = block.chainid;
         DOMAIN_SEPARATOR = _computeDomainSeparator();
     }
 
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) public virtual {
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) public virtual {
         if (block.timestamp > deadline) revert PermitExpired();
 
         // Unchecked because the only math done is incrementing the owner's nonce which cannot realistically overflow.
         unchecked {
             address recoveredAddress = ecrecover(
-                _computeDigest(
-                    keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))
-                ),
+                _computeDigest(keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))),
                 v,
                 r,
                 s
@@ -164,8 +141,7 @@ abstract contract ERC20Permit is ERC20 {
     }
 
     function _computeDomainSeparator() internal view virtual returns (bytes32) {
-        return
-            keccak256(abi.encode(DOMAIN_TYPEHASH, hashedDomainName, hashedDomainVersion, block.chainid, address(this)));
+        return keccak256(abi.encode(DOMAIN_TYPEHASH, hashedDomainName, hashedDomainVersion, block.chainid, address(this)));
     }
 
     function _computeDigest(bytes32 hashStruct) internal view virtual returns (bytes32) {
@@ -211,17 +187,7 @@ contract SigUtils {
 
     // computes the hash of a permit
     function getStructHash(Permit memory _permit) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    PERMITTYPEHASH,
-                    _permit.owner,
-                    _permit.spender,
-                    _permit.value,
-                    _permit.nonce,
-                    _permit.deadline
-                )
-            );
+        return keccak256(abi.encode(PERMITTYPEHASH, _permit.owner, _permit.spender, _permit.value, _permit.nonce, _permit.deadline));
     }
 
     // computes the hash of the fully encoded EIP-712 message for the domain, which can be used to recover the signer
@@ -288,13 +254,7 @@ contract DoubleTokenLexscrowTest is Test {
         testToken2Addr = address(testToken2);
         // initialize EIP712 variables
         sigUtils = new SigUtils(testToken.domainSeparator());
-        DoubleTokenLexscrow.Amounts memory _amounts = DoubleTokenLexscrow.Amounts(
-            totalAmount,
-            fee,
-            totalAmount,
-            fee,
-            receiver
-        );
+        DoubleTokenLexscrow.Amounts memory _amounts = DoubleTokenLexscrow.Amounts(totalAmount, fee, totalAmount, fee, receiver);
         escrowTest = new DoubleTokenLexscrow(
             false,
             expirationTime,
@@ -303,7 +263,6 @@ contract DoubleTokenLexscrowTest is Test {
             testTokenAddr,
             testToken2Addr,
             address(0), // test without conditions first
-            address(0), // receipt's tests are separate, and receipt.sol does not affect LeXscrow execution
             _amounts
         );
         escrowTestAddr = address(escrowTest);
@@ -335,13 +294,7 @@ contract DoubleTokenLexscrowTest is Test {
         uint256 _totalAmount1,
         uint256 _totalAmount2
     ) public {
-        DoubleTokenLexscrow.Amounts memory _amounts = DoubleTokenLexscrow.Amounts(
-            _totalAmount1,
-            0,
-            _totalAmount2,
-            0,
-            receiver
-        );
+        DoubleTokenLexscrow.Amounts memory _amounts = DoubleTokenLexscrow.Amounts(_totalAmount1, 0, _totalAmount2, 0, receiver);
         bool _reverted;
         if (
             _totalAmount1 == 0 ||
@@ -368,7 +321,6 @@ contract DoubleTokenLexscrowTest is Test {
             testTokenAddr,
             testToken2Addr,
             address(0), // test without conditions first
-            address(0),
             _amounts
         );
         if (!_reverted) {
@@ -548,26 +500,10 @@ contract DoubleTokenLexscrowTest is Test {
         else _executed = true;
         escrowTest.execute();
         if (_executed) {
-            assertGt(
-                preBalances._preBalance,
-                testToken.balanceOf(escrowTestAddr),
-                "escrow's balance should have been reduced"
-            );
-            assertGt(
-                preBalances._preBalance2,
-                testToken2.balanceOf(escrowTestAddr),
-                "escrow's balance2 should have been reduced"
-            );
-            assertGt(
-                testToken2.balanceOf(buyer),
-                preBalances._preBuyerBalance,
-                "buyer's balance of token2 should have been increased"
-            );
-            assertGt(
-                testToken.balanceOf(seller),
-                preBalances._preSellerBalance,
-                "seller's balance of token should have been increased"
-            );
+            assertGt(preBalances._preBalance, testToken.balanceOf(escrowTestAddr), "escrow's balance should have been reduced");
+            assertGt(preBalances._preBalance2, testToken2.balanceOf(escrowTestAddr), "escrow's balance2 should have been reduced");
+            assertGt(testToken2.balanceOf(buyer), preBalances._preBuyerBalance, "buyer's balance of token2 should have been increased");
+            assertGt(testToken.balanceOf(seller), preBalances._preSellerBalance, "seller's balance of token should have been increased");
             assertEq(
                 testToken2.balanceOf(receiver) - preBalances._preReceiverBalance2,
                 escrowTest.fee2(),
@@ -619,13 +555,7 @@ contract DoubleTokenLexscrowTest is Test {
         if (_len == 0) assertTrue(callResult, "empty conditions should return true");
         else assertTrue(result == callResult, "condition calls do not match");
 
-        DoubleTokenLexscrow.Amounts memory _amounts = DoubleTokenLexscrow.Amounts(
-            totalAmount,
-            fee,
-            totalAmount,
-            fee,
-            receiver
-        );
+        DoubleTokenLexscrow.Amounts memory _amounts = DoubleTokenLexscrow.Amounts(totalAmount, fee, totalAmount, fee, receiver);
         /// feed 'address(this)' as the condition to return the fuzzed bool value from 'checkCondition()'
         DoubleTokenLexscrow conditionEscrowTest = new DoubleTokenLexscrow(
             false,
@@ -635,7 +565,6 @@ contract DoubleTokenLexscrowTest is Test {
             testTokenAddr,
             testToken2Addr,
             address(_manager),
-            address(0),
             _amounts
         );
         address conditionEscrowTestAddr = address(conditionEscrowTest);
@@ -654,34 +583,16 @@ contract DoubleTokenLexscrowTest is Test {
         if (
             !callResult ||
             conditionEscrowTest.isExpired() ||
-            testToken.balanceOf(conditionEscrowTestAddr) <
-            conditionEscrowTest.totalAmount1() + conditionEscrowTest.fee1() ||
-            testToken2.balanceOf(conditionEscrowTestAddr) <
-            conditionEscrowTest.totalAmount2() + conditionEscrowTest.fee2()
+            testToken.balanceOf(conditionEscrowTestAddr) < conditionEscrowTest.totalAmount1() + conditionEscrowTest.fee1() ||
+            testToken2.balanceOf(conditionEscrowTestAddr) < conditionEscrowTest.totalAmount2() + conditionEscrowTest.fee2()
         ) vm.expectRevert();
         else _executed = true;
         conditionEscrowTest.execute();
         if (_executed && !conditionEscrowTest.isExpired()) {
-            assertGt(
-                preBalances._preBalance,
-                testToken.balanceOf(conditionEscrowTestAddr),
-                "escrow's balance should have been reduced"
-            );
-            assertGt(
-                preBalances._preBalance2,
-                testToken2.balanceOf(conditionEscrowTestAddr),
-                "escrow's balance2 should have been reduced"
-            );
-            assertGt(
-                testToken2.balanceOf(buyer),
-                preBalances._preBuyerBalance,
-                "buyer's balance of token2 should have been increased"
-            );
-            assertGt(
-                testToken.balanceOf(seller),
-                preBalances._preSellerBalance,
-                "seller's balance of token should have been increased"
-            );
+            assertGt(preBalances._preBalance, testToken.balanceOf(conditionEscrowTestAddr), "escrow's balance should have been reduced");
+            assertGt(preBalances._preBalance2, testToken2.balanceOf(conditionEscrowTestAddr), "escrow's balance2 should have been reduced");
+            assertGt(testToken2.balanceOf(buyer), preBalances._preBuyerBalance, "buyer's balance of token2 should have been increased");
+            assertGt(testToken.balanceOf(seller), preBalances._preSellerBalance, "seller's balance of token should have been increased");
             assertEq(
                 testToken2.balanceOf(receiver) - preBalances._preReceiverBalance2,
                 conditionEscrowTest.fee2(),
@@ -718,36 +629,22 @@ contract DoubleTokenLexscrowTest is Test {
         // if consent not already given (and thus not already terminated), call
         if (!escrowTest.terminationConsent(buyer)) escrowTest.electToTerminate(true);
         if (!_isAlreadyExpired) {
-            assertGt(
-                preBalances._preBalance,
-                testToken.balanceOf(escrowTestAddr),
-                "escrow's balance should have been reduced"
-            );
-            assertGt(
-                preBalances._preBalance2,
-                testToken2.balanceOf(escrowTestAddr),
-                "escrow's balance2 should have been reduced"
-            );
-            assertGt(
-                testToken.balanceOf(buyer),
-                preBalances._preBuyerBalance,
-                "buyer's balance of token1 should have been increased"
-            );
-            assertGt(
-                testToken2.balanceOf(seller),
-                preBalances._preSellerBalance,
-                "seller's balance of token2 should have been increased"
-            );
-            assertEq(
-                testToken2.balanceOf(receiver),
-                preBalances._preReceiverBalance2,
-                "receiver's balance of token2 should not change"
-            );
-            assertEq(
-                testToken.balanceOf(receiver),
-                preBalances._preReceiverBalance,
-                "receiver's balance of token1 should not change"
-            );
+            assertGt(preBalances._preBalance, testToken.balanceOf(escrowTestAddr), "escrow's balance should have been reduced");
+            assertGt(preBalances._preBalance2, testToken2.balanceOf(escrowTestAddr), "escrow's balance2 should have been reduced");
+            assertGt(testToken.balanceOf(buyer), preBalances._preBuyerBalance, "buyer's balance of token1 should have been increased");
+            assertGt(testToken2.balanceOf(seller), preBalances._preSellerBalance, "seller's balance of token2 should have been increased");
+            assertEq(testToken2.balanceOf(receiver), preBalances._preReceiverBalance2, "receiver's balance of token2 should not change");
+            assertEq(testToken.balanceOf(receiver), preBalances._preReceiverBalance, "receiver's balance of token1 should not change");
         }
+    }
+
+    function testGetStatus() external {
+        bool _isAlreadyExpired = escrowTest.checkIfExpired();
+        (bool _expired, bool _buyerConsent, bool _sellerConsent, uint8 _executions, uint256 _timeUntilExpiry) = escrowTest.getStatus();
+        assertEq(_expired, _isAlreadyExpired, "expired status does not match");
+        assertEq(_buyerConsent, escrowTest.terminationConsent(buyer), "buyer consent does not match");
+        assertEq(_sellerConsent, escrowTest.terminationConsent(seller), "seller consent does not match");
+        assertEq(_executions, escrowTest.executions(), "executions do not match");
+        assertEq(_timeUntilExpiry, escrowTest.expirationTime() - block.timestamp, "time until expiry does not match");
     }
 }
