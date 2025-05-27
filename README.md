@@ -125,8 +125,6 @@ Otherwise, amount held in the LeXscroW will be treated according to the code in 
 - `DoubleTokenLexscrowFactory`, `TokenLexscrowFactory`, and `EthLexscrowFactory` set any applicable fee amounts, fee receiver address, and enable easy deployment of the corresponding LeXscroW type (including simultaneous deployment of a [Ricardian Tripler](https://github.com/MetaLex-Tech/RicardianTriplerDoubleTokenLeXscroW) and a corresponding LeXscroW where supported).
 
 - `LexscrowConditionManager` is an adaptation of the [BORG-CORE `ConditionManager`](https://github.com/MetaLex-Tech/BORG-CORE/blob/main/src/libs/conditions/conditionManager.sol), without auth/access control (and thus also the ability to add or remove conditions post-deployment) in favor of immutability.
-    
-- `Receipt` is an optional informational contract that provides a USD-value "receipt" for certain tokens with initialized and configured data feeds.
 
 
 ## Prerequisites
@@ -134,7 +132,7 @@ Otherwise, amount held in the LeXscroW will be treated according to the code in 
 Before you begin, ensure you have the following installed:
 - [Node.js](https://nodejs.org/)
 - [Foundry](https://book.getfoundry.sh/getting-started/installation.html)
-- solc v0.8.18
+- solc v0.8.20
 
 ## Installation
 
@@ -154,5 +152,5 @@ To set up the project locally, follow these steps:
 3. **Compile Contracts**
 
     ```bash
-    forge build --optimize --optimizer-runs 200 --use solc:0.8.18 --via-ir
+    forge build
     ```
