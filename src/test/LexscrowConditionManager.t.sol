@@ -2,25 +2,17 @@
 
 pragma solidity ^0.8.18;
 
-import "forge-std/Test.sol";
+import "forge-std/src/Test.sol";
 import "src/libs/LexscrowConditionManager.sol";
 
 interface IBaseCondition {
-    function checkCondition(
-        address _contract,
-        bytes4 _functionSignature,
-        bytes memory data
-    ) external view returns (bool);
+    function checkCondition(address _contract, bytes4 _functionSignature, bytes memory data) external view returns (bool);
 }
 
 contract BaseCondition is IERC165 {
     constructor() {}
 
-    function checkCondition(
-        address _contract,
-        bytes4 _functionSignature,
-        bytes memory data
-    ) public view virtual returns (bool) {}
+    function checkCondition(address _contract, bytes4 _functionSignature, bytes memory data) public view virtual returns (bool) {}
 
     function supportsInterface(bytes4 interfaceId) external view virtual override returns (bool) {
         return interfaceId == type(ICondition).interfaceId || interfaceId == type(IERC165).interfaceId;
@@ -56,14 +48,10 @@ contract LexscrowConditionManagerTest is Test {
         // ensure everything was properly pushed in the '_manager' contract
         for (uint256 x = 0; x < _len; x++) {
             // Use low-level call to retrieve the condition address and Logic, since can't use getter for an array in another contract
-            (bool success, bytes memory result) = address(_manager).call(
-                abi.encodeWithSignature("conditions(uint256)", x)
-            );
+            (bool success, bytes memory result) = address(_manager).call(abi.encodeWithSignature("conditions(uint256)", x));
             require(success, "External call failed");
             address _conditionRetrieved = abi.decode(result, (address));
-            (bool success2, bytes memory result2) = address(_manager).call(
-                abi.encodeWithSignature("conditions(uint256)", x)
-            );
+            (bool success2, bytes memory result2) = address(_manager).call(abi.encodeWithSignature("conditions(uint256)", x));
             require(success2, "External call failed");
             bool _logRet;
             (, uint256 _logicValue) = abi.decode(result2, (address, uint256)); // Use low-level call to retrieve the Logic enum value encoded as uint256
