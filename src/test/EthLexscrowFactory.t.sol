@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.18;
 
-import "forge-std/Test.sol";
+import "forge-std/src/Test.sol";
 import "src/EthLexscrowFactory.sol";
 
 /// @notice foundry framework testing of EthLexscrowFactory.sol
