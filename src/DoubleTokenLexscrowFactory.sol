@@ -46,10 +46,7 @@ contract DoubleTokenLexscrowFactory {
     event DoubleTokenLexscrowFactory_Deployment(address deployer, address indexed DoubleTokenLexscrowAddress);
     event DoubleTokenLexscrowFactory_FeeUpdate(bool feeSwitch, uint256 newFeeBasisPoints);
     event DoubleTokenLexscrowFactory_ReceiverUpdate(address newReceiver);
-    event LexscrowConditionManager_Deployment(
-        address LexscrowConditionManagerAddress,
-        LexscrowConditionManager.Condition[] conditions
-    );
+    event LexscrowConditionManager_Deployment(address LexscrowConditionManagerAddress, LexscrowConditionManager.Condition[] conditions);
 
     ///
     /// ERRORS
@@ -84,10 +81,10 @@ contract DoubleTokenLexscrowFactory {
     /// @param _buyer the buyer's address, depositor of token1 and recipient of token2 if the contract executes. Ignored if 'openOffer'
     /// @param _tokenContract1 contract address for the ERC20 token used in the DoubleTokenLexscrow as 'token1'; fee-on-transfer and rebasing tokens are NOT SUPPORTED as the applicable deposit & fee amounts are immutable
     /// @param _tokenContract2 contract address for the ERC20 token used in the DoubleTokenLexscrow as 'token2'; fee-on-transfer and rebasing tokens are NOT SUPPORTED as the applicable deposit & fee amounts are immutable
-    /// @param _receipt contract address for Receipt.sol contract
     /// @param _conditions array of Condition structs, which for each element contains:
     /// op: LexscrowConditionManager.Logic enum, either `AND` (all conditions must be true) or `OR` (only one of the conditions must be true)
     /// condition: address of the condition contract
+    /// @return _newDoubleTokenLexscrow address of the newly deployed DoubleTokenLexscrow
     function deployDoubleTokenLexscrow(
         bool _openOffer,
         uint256 _totalAmount1,
@@ -97,9 +94,8 @@ contract DoubleTokenLexscrowFactory {
         address _buyer,
         address _tokenContract1,
         address _tokenContract2,
-        address _receipt,
         LexscrowConditionManager.Condition[] calldata _conditions
-    ) external {
+    ) external returns (address) {
         // if 'feeSwitch' == true, calculate fees based on applicable `_totalAmount1`/`_totalAmount2`, so each total amount + fee amount will be used in the DoubleTokenLexscrow deployment
         uint256 _fee1; // default fees of 0
         uint256 _fee2;
@@ -110,13 +106,7 @@ contract DoubleTokenLexscrowFactory {
 
         LexscrowConditionManager _newConditionManager = new LexscrowConditionManager(_conditions);
 
-        DoubleTokenLexscrow.Amounts memory _amounts = DoubleTokenLexscrow.Amounts(
-            _totalAmount1,
-            _fee1,
-            _totalAmount2,
-            _fee2,
-            receiver
-        );
+        DoubleTokenLexscrow.Amounts memory _amounts = DoubleTokenLexscrow.Amounts(_totalAmount1, _fee1, _totalAmount2, _fee2, receiver);
         DoubleTokenLexscrow _newDoubleTokenLexscrow = new DoubleTokenLexscrow(
             _openOffer,
             _expirationTime,
@@ -125,11 +115,11 @@ contract DoubleTokenLexscrowFactory {
             _tokenContract1,
             _tokenContract2,
             address(_newConditionManager),
-            _receipt,
             _amounts
         );
         emit DoubleTokenLexscrowFactory_Deployment(msg.sender, address(_newDoubleTokenLexscrow));
         emit LexscrowConditionManager_Deployment(address(_newConditionManager), _conditions);
+        return (address(_newDoubleTokenLexscrow));
     }
 
     /// @notice allows the `receiver` to toggle the fee switch, and update the `feeBasisPoints`, using a two-step change with a one day delay
@@ -145,8 +135,7 @@ contract DoubleTokenLexscrowFactory {
     /// @notice allows the `receiver` to accept the fee updates at least one day after `updateFee` has been called
     function acceptFeeUpdate() external {
         if (msg.sender != receiver) revert DoubleTokenLexscrowFactory_OnlyReceiver();
-        if (block.timestamp - _lastFeeUpdateTime < DAY_IN_SECONDS)
-            revert DoubleTokenLexscrowFactory_OneDayWaitingPeriodPending();
+        if (block.timestamp - _lastFeeUpdateTime < DAY_IN_SECONDS) revert DoubleTokenLexscrowFactory_OneDayWaitingPeriodPending();
 
         feeSwitch = _pendingFeeSwitch;
         feeBasisPoints = _pendingFeeBasisPoints;
