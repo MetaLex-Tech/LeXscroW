@@ -18,11 +18,6 @@ interface ILexscrowConditionManager {
     function checkConditions(bytes memory data) external view returns (bool result);
 }
 
-/// @notice interface to Receipt.sol, which optionally returns USD-value receipts for a provided token amount
-interface IReceipt {
-    function printReceipt(address token, uint256 tokenAmount, uint256 decimals) external returns (uint256, uint256);
-}
-
 /// @notice gas-efficient ETH safe transfers that revert on failure, `SafeTransferETH()`
 abstract contract SafeTransferLib {
     /// @dev The ETH transfer has failed.
@@ -98,8 +93,6 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         address payable receiver;
     }
 
-    // Receipt.sol contract address, ETH mainnet
-    IReceipt internal constant RECEIPT = IReceipt(0xf838D6829fcCBedCB0B4D8aD58cb99814F935BA8);
     // 18 decimals for wei
     uint256 internal constant DECIMALS = 18;
 
@@ -117,6 +110,9 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
     bool public isExpired;
     address payable public buyer;
     address payable public seller;
+    /// @notice number of times this contract has been executed
+    /// @dev unit8 rather than boolean as this contract can be executed multiple times
+    uint8 public executions;
     /// @notice aggregate pending withdrawable amount, so address(this) balance checks subtract withdrawable, but not yet withdrawn, amounts
     uint256 public pendingWithdraw;
 
@@ -205,15 +201,7 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         receiver = _amounts.receiver;
         conditionManager = ILexscrowConditionManager(_conditionManager);
 
-        emit EthLexscrow_Deployed(
-            _refundable,
-            _openOffer,
-            _expirationTime,
-            _seller,
-            _buyer,
-            _conditionManager,
-            _amounts
-        );
+        emit EthLexscrow_Deployed(_refundable, _openOffer, _expirationTime, _seller, _buyer, _conditionManager, _amounts);
     }
 
     /// @notice deposit value simply by sending `msg.value` to `address(this)`; if openOffer, msg.sender must deposit `totalWithFee`
@@ -274,10 +262,8 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
      *** Does not require amountDeposited[buyer] == address(this).balance to allow buyer to deposit from multiple addresses if desired */
     function execute() external {
         uint256 _lockedBalance = address(this).balance - pendingWithdraw;
-        if (
-            _lockedBalance < totalWithFee ||
-            (address(conditionManager) != address(0) && !conditionManager.checkConditions(""))
-        ) revert EthLexscrow_NotReadyToExecute();
+        if (_lockedBalance < totalWithFee || (address(conditionManager) != address(0) && !conditionManager.checkConditions("")))
+            revert EthLexscrow_NotReadyToExecute();
 
         if (!checkIfExpired()) {
             delete deposited;
@@ -289,15 +275,6 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
             // effective time of execution is block.timestamp upon payment to seller
             emit EthLexscrow_Executed(block.timestamp);
         }
-    }
-
-    /// @notice convenience function to get a USD value receipt if a dAPI / data feed proxy exists for ETH, for example for `seller` to submit `totalAmount` immediately after execution/release of this EthLexscrow
-    /// @dev external call will revert if price quote is too stale or if token is not supported; event containing `_paymentId` and `_usdValue` emitted by Receipt.sol. address(0) hard-coded for tokenContract, as native gas token price is sought
-    /// @param _weiAmount amount of wei for which caller is seeking the total USD value receipt (for example, `totalAmount` or `deposit`)
-    /// @return _paymentId uint256 ID number for this call
-    /// @return _usdValue uint256 printed receipt value in $US for this `_weiAmount` of the applicable native gas token
-    function getReceipt(uint256 _weiAmount) external returns (uint256 _paymentId, uint256 _usdValue) {
-        return RECEIPT.printReceipt(address(0), _weiAmount, DECIMALS);
     }
 
     /// @notice for a `seller` to reject the `buyer`'s deposit and cause the return of their deposited amount, and preventing the `buyer` from depositing again
@@ -343,6 +320,20 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
 
         safeTransferETH(payable(msg.sender), _amt);
         emit EthLexscrow_DepositedAmountTransferred(msg.sender, _amt);
+    }
+
+    /// @notice view function to check the status of this LeXscroW
+    /// @return _expired boolean of whether this LeXscroW has expired
+    /// @return _executions number of times this LeXscroW has been executed
+    /// @return _timeUntilExpiry the time until this LeXscroW expires
+    function getStatus() external view returns (bool, uint8, uint256) {
+        return (expired(), executions, expirationTime > block.timestamp ? expirationTime - block.timestamp : 0);
+    }
+
+    /// @notice view function to check if this contract has expired
+    /// @return _expired boolean of whether this LeXscroW has expired
+    function expired() public view returns (bool _expired) {
+        return expirationTime <= block.timestamp;
     }
 
     /// @notice check if expired, and if so, handle refundability by updating the `amountWithdrawable` mapping as applicable
