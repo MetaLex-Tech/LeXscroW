@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.18;
 
-import "forge-std/Test.sol";
+import "forge-std/src/Test.sol";
 import "src/EthLexscrow.sol";
 import "src/libs/LexscrowConditionManager.sol";
 
@@ -450,5 +450,13 @@ contract EthLexscrowTest is Test {
                 "buyer's amountWithdrawable should have increased upon expiry because 'conditionEscrowTest' is refundable"
             );
         }
+    }
+
+    function testGetStatus() external {
+        bool _isAlreadyExpired = escrowTest.checkIfExpired();
+        (bool _expired, uint8 _executions, uint256 _timeUntilExpiry) = escrowTest.getStatus();
+        assertEq(_expired, _isAlreadyExpired, "expired status does not match");
+        assertEq(_executions, escrowTest.executions(), "executions do not match");
+        assertEq(_timeUntilExpiry, escrowTest.expirationTime() - block.timestamp, "time until expiry does not match");
     }
 }
