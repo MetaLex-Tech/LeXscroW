@@ -19,17 +19,7 @@ interface IERC20Permit {
 
     function balanceOf(address account) external view returns (uint256);
 
-    function decimals() external view returns (uint256);
-
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
 
     function totalSupply() external view returns (uint256);
 }
@@ -37,11 +27,6 @@ interface IERC20Permit {
 /// @notice interface to LexscrowConditionManager or MetaLeX`s regular ConditionManager
 interface ILexscrowConditionManager {
     function checkConditions(bytes memory data) external view returns (bool result);
-}
-
-/// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount
-interface IReceipt {
-    function printReceipt(address token, uint256 tokenAmount, uint256 decimals) external returns (uint256, uint256);
 }
 
 /// @notice gas-efficient ERC20 safe transfers that revert on failure, `SafeTransfer()` and `SafeTransferFrom()`
@@ -158,9 +143,6 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         address receiver;
     }
 
-    // Receipt.sol contract address, ETH mainnet
-    IReceipt internal constant RECEIPT = IReceipt(0xf838D6829fcCBedCB0B4D8aD58cb99814F935BA8);
-
     // internal visibility for gas savings, as `tokenContract` is public and bears the same contract address
     IERC20Permit internal immutable erc20;
     ILexscrowConditionManager public immutable conditionManager;
@@ -178,6 +160,9 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
     address public seller;
     bool public deposited;
     bool public isExpired;
+    /// @notice number of times this contract has been executed
+    /// @dev unit8 rather than boolean as this contract can be executed multiple times
+    uint8 public executions;
     /// @notice aggregate pending withdrawable amount, so address(this) balance checks subtract withdrawable, but not yet withdrawn, amounts
     uint256 public pendingWithdraw;
 
@@ -277,16 +262,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         // basic check of ERC20 compliance, calls will revert if not compliant with interface
         if (erc20.totalSupply() == 0 || erc20.balanceOf(address(this)) < 0) revert TokenLexscrow_NonERC20Contract();
 
-        emit TokenLexscrow_Deployed(
-            _refundable,
-            _openOffer,
-            _expirationTime,
-            _seller,
-            _buyer,
-            _tokenContract,
-            _conditionManager,
-            _amounts
-        );
+        emit TokenLexscrow_Deployed(_refundable, _openOffer, _expirationTime, _seller, _buyer, _tokenContract, _conditionManager, _amounts);
     }
 
     /// @notice deposit value to `address(this)` by permitting address(this) to safeTransferFrom `_amount` of tokens from `_depositor`
@@ -359,8 +335,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
             else revert TokenLexscrow_BalanceExceedsTotalAmount();
         }
         if (!openOffer && msg.sender != buyer) revert TokenLexscrow_NotBuyer();
-        if (erc20.allowance(msg.sender, address(this)) < _amount)
-            revert TokenLexscrow_AmountNotApprovedForTransferFrom();
+        if (erc20.allowance(msg.sender, address(this)) < _amount) revert TokenLexscrow_AmountNotApprovedForTransferFrom();
         if (expirationTime <= block.timestamp) revert TokenLexscrow_IsExpired();
         if (openOffer && _balance < totalWithFee) revert TokenLexscrow_MustDepositTotalAmount();
 
@@ -432,15 +407,6 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         }
     }
 
-    /// @notice convenience function to get a USD value receipt if a dAPI / data feed proxy exists for `tokenContract`, for example for `seller` to submit `totalAmount` immediately after execution/release of TokenLexscrow
-    /// @dev external call will revert if price quote is too stale or if token is not supported; event containing `_paymentId` and `_usdValue` emitted by Receipt.sol
-    /// @param _tokenAmount amount of tokens (corresponding to this TokenLexscrow's `tokenContract`) for which caller is seeking the total USD value receipt
-    /// @return _paymentId uint256 ID number for this call
-    /// @return _usdValue uint256 printed receipt value in $US for this `_tokenAmount` of the applicable token
-    function getReceipt(uint256 _tokenAmount) external returns (uint256 _paymentId, uint256 _usdValue) {
-        return RECEIPT.printReceipt(tokenContract, _tokenAmount, erc20.decimals());
-    }
-
     /// @notice for a `seller` to reject the `buyer`'s deposit and cause the return of their deposited amount, and preventing the `buyer` from depositing again
     /// @dev if !openOffer, `buyer` will need to call `updateBuyer` to choose another address and re-deposit tokens. If `openOffer`, a new depositing address must be used.
     /// while there is a risk of a malicious actor spamming deposits from new undesirable addresses, it is their own funds at risk, and a tradeoff of using an `openOffer` LeXscrow.
@@ -484,6 +450,20 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
 
         safeTransfer(tokenContract, msg.sender, _amt);
         emit TokenLexscrow_DepositedAmountTransferred(msg.sender, _amt);
+    }
+
+    /// @notice view function to check the status of this LeXscroW
+    /// @return _expired boolean of whether this LeXscroW has expired
+    /// @return _executions number of times this LeXscroW has been executed
+    /// @return _timeUntilExpiry the time until this LeXscroW expires
+    function getStatus() external view returns (bool, uint8, uint256) {
+        return (expired(), executions, expirationTime > block.timestamp ? expirationTime - block.timestamp : 0);
+    }
+
+    /// @notice view function to check if this contract has expired
+    /// @return _expired boolean of whether this LeXscroW has expired
+    function expired() public view returns (bool _expired) {
+        return expirationTime <= block.timestamp;
     }
 
     /// @notice check if expired, and if so, handle refundability by updating the `amountWithdrawable` mapping as applicable

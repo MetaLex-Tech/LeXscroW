@@ -2,26 +2,18 @@
 
 pragma solidity ^0.8.18;
 
-import "forge-std/Test.sol";
+import "forge-std/src/Test.sol";
 import "src/TokenLexscrow.sol";
 import "src/libs/LexscrowConditionManager.sol";
 
 interface IBaseCondition {
-    function checkCondition(
-        address _contract,
-        bytes4 _functionSignature,
-        bytes memory data
-    ) external view returns (bool);
+    function checkCondition(address _contract, bytes4 _functionSignature, bytes memory data) external view returns (bool);
 }
 
 contract BaseCondition is IERC165 {
     constructor() {}
 
-    function checkCondition(
-        address _contract,
-        bytes4 _functionSignature,
-        bytes memory data
-    ) public view virtual returns (bool) {}
+    function checkCondition(address _contract, bytes4 _functionSignature, bytes memory data) public view virtual returns (bool) {}
 
     function supportsInterface(bytes4 interfaceId) external view virtual override returns (bool) {
         return interfaceId == type(ICondition).interfaceId || interfaceId == type(IERC165).interfaceId;
@@ -102,35 +94,20 @@ abstract contract ERC20Permit is ERC20 {
     error PermitExpired();
     error InvalidSigner();
 
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        string memory _version,
-        uint8 _decimals
-    ) ERC20(_name, _symbol, _decimals) {
+    constructor(string memory _name, string memory _symbol, string memory _version, uint8 _decimals) ERC20(_name, _symbol, _decimals) {
         hashedDomainName = keccak256(bytes(_name));
         hashedDomainVersion = keccak256(bytes(_version));
         initialDomainSeparator = _computeDomainSeparator();
         initialChainId = block.chainid;
     }
 
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) public virtual {
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) public virtual {
         if (block.timestamp > deadline) revert PermitExpired();
 
         // Unchecked because the only math done is incrementing the owner's nonce which cannot realistically overflow.
         unchecked {
             address recoveredAddress = ecrecover(
-                _computeDigest(
-                    keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))
-                ),
+                _computeDigest(keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))),
                 v,
                 r,
                 s
@@ -147,8 +124,7 @@ abstract contract ERC20Permit is ERC20 {
     }
 
     function _computeDomainSeparator() internal view virtual returns (bytes32) {
-        return
-            keccak256(abi.encode(DOMAIN_TYPEHASH, hashedDomainName, hashedDomainVersion, block.chainid, address(this)));
+        return keccak256(abi.encode(DOMAIN_TYPEHASH, hashedDomainName, hashedDomainVersion, block.chainid, address(this)));
     }
 
     function _computeDigest(bytes32 hashStruct) internal view virtual returns (bytes32) {
@@ -196,17 +172,7 @@ contract SigUtils {
 
     // computes the hash of a permit
     function getStructHash(Permit memory _permit) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    PERMITTYPEHASH,
-                    _permit.owner,
-                    _permit.spender,
-                    _permit.value,
-                    _permit.nonce,
-                    _permit.deadline
-                )
-            );
+        return keccak256(abi.encode(PERMITTYPEHASH, _permit.owner, _permit.spender, _permit.value, _permit.nonce, _permit.deadline));
     }
 
     // computes the hash of the fully encoded EIP-712 message for the domain, which can be used to recover the signer
@@ -450,16 +416,8 @@ contract TokenLexscrowTest is Test {
             assertEq(escrowTest.amountDeposited(escrowTest.buyer()), 0, "buyer's amountDeposited was not deleted");
         } else {
             assertTrue(!escrowTest.isExpired());
-            assertEq(
-                escrowTest.amountWithdrawable(seller),
-                _preSellerAmtWithdrawable,
-                "seller's amountWithdrawable should be unchanged"
-            );
-            assertEq(
-                escrowTest.amountWithdrawable(buyer),
-                _preBuyerAmtWithdrawable,
-                "buyer's amountWithdrawable should be unchanged"
-            );
+            assertEq(escrowTest.amountWithdrawable(seller), _preSellerAmtWithdrawable, "seller's amountWithdrawable should be unchanged");
+            assertEq(escrowTest.amountWithdrawable(buyer), _preBuyerAmtWithdrawable, "buyer's amountWithdrawable should be unchanged");
         }
     }
 
@@ -467,16 +425,7 @@ contract TokenLexscrowTest is Test {
         // '_deposit' must be less than 'totalWithFee'
         vm.assume(_deposit <= totalWithFee);
         TokenLexscrow.Amounts memory _amounts = TokenLexscrow.Amounts(deposit, totalAmount, fee, receiver);
-        openEscrowTest = new TokenLexscrow(
-            true,
-            true,
-            expirationTime,
-            seller,
-            buyer,
-            testTokenAddr,
-            address(0),
-            _amounts
-        );
+        openEscrowTest = new TokenLexscrow(true, true, expirationTime, seller, buyer, testTokenAddr, address(0), _amounts);
         address _newContract = address(openEscrowTest);
         bool _reverted;
         vm.assume(_newContract != buyer);
@@ -505,14 +454,9 @@ contract TokenLexscrowTest is Test {
         openEscrowTest.rejectDepositor();
         if (!_reverted) {
             if (_wasDeposited && _success && buyer != address(0)) {
-                if (openEscrowTest.openOffer())
-                    assertEq(address(0), openEscrowTest.buyer(), "buyer address did not delete");
+                if (openEscrowTest.openOffer()) assertEq(address(0), openEscrowTest.buyer(), "buyer address did not delete");
                 assertTrue(!openEscrowTest.deposited(), "deposited variable did not delete");
-                assertGt(
-                    openEscrowTest.amountWithdrawable(buyer),
-                    _amountWithdrawableBefore,
-                    "buyer's amountWithdrawable did not update"
-                );
+                assertGt(openEscrowTest.amountWithdrawable(buyer), _amountWithdrawableBefore, "buyer's amountWithdrawable did not update");
             }
             assertEq(0, openEscrowTest.amountDeposited(buyer), "amountDeposited did not delete");
             assertTrue(openEscrowTest.rejected(buyer), "rejected mapping not updated");
@@ -560,11 +504,8 @@ contract TokenLexscrowTest is Test {
         uint256 _preSellerBalance = testToken.balanceOf(fuzzEscrowTest.seller());
         bool _approved;
 
-        if (
-            _preBalance != fuzzEscrowTest.totalWithFee() ||
-            _deposit > _totalAmount ||
-            fuzzEscrowTest.expirationTime() <= block.timestamp
-        ) vm.expectRevert();
+        if (_preBalance != fuzzEscrowTest.totalWithFee() || _deposit > _totalAmount || fuzzEscrowTest.expirationTime() <= block.timestamp)
+            vm.expectRevert();
         else _approved = true;
 
         fuzzEscrowTest.execute();
@@ -647,16 +588,7 @@ contract TokenLexscrowTest is Test {
 
         TokenLexscrow.Amounts memory _amounts = TokenLexscrow.Amounts(deposit, totalAmount, fee, receiver);
 
-        conditionEscrowTest = new TokenLexscrow(
-            true,
-            true,
-            expirationTime,
-            seller,
-            buyer,
-            testTokenAddr,
-            address(_manager),
-            _amounts
-        );
+        conditionEscrowTest = new TokenLexscrow(true, true, expirationTime, seller, buyer, testTokenAddr, address(_manager), _amounts);
 
         testToken.mintToken(address(conditionEscrowTest), totalWithFee);
 
@@ -710,5 +642,13 @@ contract TokenLexscrowTest is Test {
                 "buyer's amountWithdrawable should have increased upon expiry because 'conditionEscrowTest' is refundable"
             );
         }
+    }
+
+    function testGetStatus() external {
+        bool _isAlreadyExpired = escrowTest.checkIfExpired();
+        (bool _expired, uint8 _executions, uint256 _timeUntilExpiry) = escrowTest.getStatus();
+        assertEq(_expired, _isAlreadyExpired, "expired status does not match");
+        assertEq(_executions, escrowTest.executions(), "executions do not match");
+        assertEq(_timeUntilExpiry, escrowTest.expirationTime() - block.timestamp, "time until expiry does not match");
     }
 }

@@ -46,10 +46,7 @@ contract EthLexscrowFactory {
     event EthLexscrowFactory_Deployment(address deployer, address indexed EthLexscrowAddress);
     event EthLexscrowFactory_FeeUpdate(bool feeSwitch, uint256 newFeeBasisPoints);
     event EthLexscrowFactory_ReceiverUpdate(address newReceiver);
-    event LexscrowConditionManager_Deployment(
-        address LexscrowConditionManagerAddress,
-        LexscrowConditionManager.Condition[] conditions
-    );
+    event LexscrowConditionManager_Deployment(address LexscrowConditionManagerAddress, LexscrowConditionManager.Condition[] conditions);
 
     ///
     /// ERRORS
@@ -85,6 +82,7 @@ contract EthLexscrowFactory {
     /// @param _conditions array of Condition structs, which for each element contains:
     /// op: LexscrowConditionManager.Logic enum, either 'AND' (all conditions must be true) or 'OR' (only one of the conditions must be true)
     /// condition: address of the condition contract
+    /// @return _newEthLexscrow address of the newly deployed EthLexscrow
     function deployEthLexscrow(
         bool _refundable,
         bool _openOffer,
@@ -94,7 +92,7 @@ contract EthLexscrowFactory {
         address payable _seller,
         address payable _buyer,
         LexscrowConditionManager.Condition[] calldata _conditions
-    ) external {
+    ) external returns (address) {
         // if 'feeSwitch' == true, calculate fee based on '_totalAmount', so total amount + fee amount will be used in the EthLexscrow deployment
         uint256 _fee; // default fee of 0
         if (feeSwitch) _fee = (_totalAmount * feeBasisPoints) / BASIS_POINTS;
@@ -113,6 +111,7 @@ contract EthLexscrowFactory {
         );
         emit EthLexscrowFactory_Deployment(msg.sender, address(_newEthLexscrow));
         emit LexscrowConditionManager_Deployment(address(_newConditionManager), _conditions);
+        return address(_newEthLexscrow);
     }
 
     /// @notice allows the `receiver` to toggle the fee switch, and update the `feeBasisPoints`, using a two-step change with a one day delay
@@ -128,8 +127,7 @@ contract EthLexscrowFactory {
     /// @notice allows the `receiver` to accept the fee updates at least one day after `updateFee` has been called
     function acceptFeeUpdate() external {
         if (msg.sender != receiver) revert EthLexscrowFactory_OnlyReceiver();
-        if (block.timestamp - _lastFeeUpdateTime < DAY_IN_SECONDS)
-            revert EthLexscrowFactory_OneDayWaitingPeriodPending();
+        if (block.timestamp - _lastFeeUpdateTime < DAY_IN_SECONDS) revert EthLexscrowFactory_OneDayWaitingPeriodPending();
 
         feeSwitch = _pendingFeeSwitch;
         feeBasisPoints = _pendingFeeBasisPoints;

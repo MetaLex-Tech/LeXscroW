@@ -24,24 +24,9 @@ interface IERC20Permit {
 
     function balanceOf(address account) external view returns (uint256);
 
-    function decimals() external view returns (uint256);
-
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
 
     function totalSupply() external view returns (uint256);
-}
-
-/// @notice interface to Receipt.sol, which returns USD-value receipts for a provided token amount for supported tokens
-interface IReceipt {
-    function printReceipt(address token, uint256 tokenAmount, uint256 decimals) external returns (uint256, uint256);
 }
 
 /// @notice gas-efficient ERC20 safe transfers that revert on failure, `SafeTransfer()` and `SafeTransferFrom()`
@@ -165,7 +150,6 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     IERC20Permit internal immutable token1; // tokenContract1
     IERC20Permit internal immutable token2; // tokenContract2
 
-    IReceipt internal immutable receipt;
     ILexscrowConditionManager public immutable conditionManager;
     address public immutable tokenContract1;
     address public immutable tokenContract2;
@@ -180,6 +164,10 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     address public buyer;
     address public seller;
     bool public isExpired;
+
+    /// @notice number of times the contract has been executed
+    /// @dev unit8 rather than boolean as this contract can be executed multiple times
+    uint8 public executions;
 
     /// @notice address mapped to whether they have consented to early termination and return of deposited tokens
     mapping(address => bool) public terminationConsent;
@@ -236,7 +224,6 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
     /// @param _tokenContract1 contract address for the ERC20 token used in this DoubleTokenLexscrow as `token1`
     /// @param _tokenContract2 contract address for the ERC20 token used in this DoubleTokenLexscrow as `token2`; must be different than `_tokenContract1`
     /// @param _conditionManager contract address for LexscrowConditionManager.sol, or address(0) if none
-    /// @param _receipt contract address for Receipt.sol contract
     /// @param _amounts struct containing the total amounts and fees as follows:
     /// _totalAmount1: total amount of `tokenContract1` ultimately intended for `seller`, not including fees
     /// _fee1: amount of `tokenContract1` that also must be deposited, which will be paid to the fee receiver
@@ -251,7 +238,6 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         address _tokenContract1,
         address _tokenContract2,
         address _conditionManager,
-        address _receipt,
         Amounts memory _amounts
     ) {
         if (_amounts.totalAmount1 == 0 || _amounts.totalAmount2 == 0) revert DoubleTokenLexscrow_ZeroAmount();
@@ -279,7 +265,6 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
         tokenContract2 = _tokenContract2;
 
         conditionManager = ILexscrowConditionManager(_conditionManager);
-        receipt = IReceipt(_receipt);
         token1 = IERC20Permit(_tokenContract1);
         token2 = IERC20Permit(_tokenContract2);
 
@@ -400,8 +385,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
 
         if (!_token1Deposit) {
             if (!_openOffer && msg.sender != seller) revert DoubleTokenLexscrow_NotSeller();
-            if (token2.allowance(msg.sender, address(this)) < _amount)
-                revert DoubleTokenLexscrow_AmountNotApprovedForTransferFrom();
+            if (token2.allowance(msg.sender, address(this)) < _amount) revert DoubleTokenLexscrow_AmountNotApprovedForTransferFrom();
             uint256 _totalWithFee2 = totalAmount2 + fee2;
             uint256 _balance2 = token2.balanceOf(address(this)) + _amount;
 
@@ -428,8 +412,7 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
             safeTransferFrom(_tokenContract2, msg.sender, address(this), _amount);
         } else {
             if (!_openOffer && msg.sender != buyer) revert DoubleTokenLexscrow_NotBuyer();
-            if (token1.allowance(msg.sender, address(this)) < _amount)
-                revert DoubleTokenLexscrow_AmountNotApprovedForTransferFrom();
+            if (token1.allowance(msg.sender, address(this)) < _amount) revert DoubleTokenLexscrow_AmountNotApprovedForTransferFrom();
             uint256 _totalWithFee1 = totalAmount1 + fee1;
             uint256 _balance1 = token1.balanceOf(address(this)) + _amount;
 
@@ -510,21 +493,12 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
             if (_fee2 != 0) safeTransfer(_tokenContract2, _receiver, _fee2);
             safeTransfer(_tokenContract2, buyer, _totalAmount2);
 
+            ++executions;
+
             // effective time of execution is block.timestamp, no need to emit token contracts, condition manager details, or amounts as these are immutable variables
             // and if the latter is desired to be logged, can use the ERC20 Transfer event; `DoubleTokenLexscrow_Executed` emission implies emitted Transfer events
             emit DoubleTokenLexscrow_Executed(block.timestamp, seller, buyer, _receiver);
         }
-    }
-
-    /// @notice convenience function to get a USD value receipt if a dAPI / data feed proxy exists for a tokenContract, for example for `seller` to submit `totalAmount1` and `_token1` == true immediately after execution/release of DoubleTokenLexscrow
-    /// @dev external call will revert if price quote is too stale or if token is not supported; event containing `_paymentId` and `_usdValue` emitted by Receipt.sol; irrelevant to execution of this contract
-    /// @param _token1 whether caller is seeking a receipt for `token1`; if true, yes, if false, seeking receipt for `token2`
-    /// @param _tokenAmount amount of tokens for which caller is seeking the total USD value receipt
-    /// @return _paymentId uint256 ID number for this call
-    /// @return _usdValue uint256 printed receipt value in $US for this `_tokenAmount` of the applicable token
-    function getReceipt(bool _token1, uint256 _tokenAmount) external returns (uint256 _paymentId, uint256 _usdValue) {
-        if (_token1) return receipt.printReceipt(tokenContract1, _tokenAmount, token1.decimals());
-        else return receipt.printReceipt(tokenContract2, _tokenAmount, token2.decimals());
     }
 
     /// @notice enables mutual early termination and return of deposited tokens, if both `buyer` and `seller` pass `true` to this function
@@ -548,6 +522,29 @@ contract DoubleTokenLexscrow is ReentrancyGuard, SafeTransferLib {
 
             emit DoubleTokenLexscrow_Terminated();
         }
+    }
+
+    /// @notice get the status of this LeXscroW, whether it has been executed or expired (which includes termination or election to terminate)
+    /// @dev returns the status of this LeXscroW, whether it has been executed or expired (which includes termination or election to terminate)
+    /// @return expired boolean of whether this LeXscroW has expired
+    /// @return buyerElectedToTerminate boolean of whether the buyer has elected to terminate the LeXscroW
+    /// @return sellerElectedToTerminate boolean of whether the seller has elected to terminate the LeXscroW
+    /// @return executions number of times this LeXscroW has been executed
+    /// @return timeUntilExpiry the time until this LeXscroW expires
+    function getStatus() external view returns (bool, bool, bool, uint8, uint256) {
+        return (
+            expired(),
+            terminationConsent[buyer],
+            terminationConsent[seller],
+            executions,
+            expirationTime > block.timestamp ? expirationTime - block.timestamp : 0
+        );
+    }
+
+    /// @notice convenience view function to check if this contract has expired
+    /// @return _expired boolean of whether this LeXscroW has expired
+    function expired() public view returns (bool _expired) {
+        return expirationTime <= block.timestamp;
     }
 
     /// @notice check if expired, and if so, handle refundability to the identified `buyer` and `seller` at such time by returning their applicable tokens

@@ -46,10 +46,7 @@ contract TokenLexscrowFactory {
     event TokenLexscrowFactory_Deployment(address deployer, address indexed TokenLexscrowAddress);
     event TokenLexscrowFactory_FeeUpdate(bool feeSwitch, uint256 newFeeBasisPoints);
     event TokenLexscrowFactory_ReceiverUpdate(address newReceiver);
-    event LexscrowConditionManager_Deployment(
-        address LexscrowConditionManagerAddress,
-        LexscrowConditionManager.Condition[] conditions
-    );
+    event LexscrowConditionManager_Deployment(address LexscrowConditionManagerAddress, LexscrowConditionManager.Condition[] conditions);
 
     ///
     /// ERRORS
@@ -87,6 +84,7 @@ contract TokenLexscrowFactory {
     /// @param _conditions array of Condition structs, which for each element contains:
     /// op: LexscrowConditionManager.Logic enum, either `AND` (all conditions must be true) or `OR` (only one of the conditions must be true)
     /// condition: address of the condition contract
+    /// @return _newTokenLexscrow address of the newly deployed TokenLexscrow
     function deployTokenLexscrow(
         bool _refundable,
         bool _openOffer,
@@ -97,7 +95,7 @@ contract TokenLexscrowFactory {
         address _buyer,
         address _tokenContract,
         LexscrowConditionManager.Condition[] calldata _conditions
-    ) external {
+    ) external returns (address) {
         // if 'feeSwitch' == true, calculate fee based on '_totalAmount', so total amount + fee amount will be used in the TokenLexscrow deployment
         uint256 _fee; // default fee of 0
         if (feeSwitch) _fee = (_totalAmount * feeBasisPoints) / BASIS_POINTS;
@@ -117,6 +115,7 @@ contract TokenLexscrowFactory {
         );
         emit TokenLexscrowFactory_Deployment(msg.sender, address(_newTokenLexscrow));
         emit LexscrowConditionManager_Deployment(address(_newConditionManager), _conditions);
+        return address(_newTokenLexscrow);
     }
 
     /// @notice allows the `receiver` to toggle the fee switch, and update the `feeBasisPoints`, using a two-step change with a one day delay
@@ -132,8 +131,7 @@ contract TokenLexscrowFactory {
     /// @notice allows the `receiver` to accept the fee updates at least one day after `updateFee` has been called
     function acceptFeeUpdate() external {
         if (msg.sender != receiver) revert TokenLexscrowFactory_OnlyReceiver();
-        if (block.timestamp - _lastFeeUpdateTime < DAY_IN_SECONDS)
-            revert TokenLexscrowFactory_OneDayWaitingPeriodPending();
+        if (block.timestamp - _lastFeeUpdateTime < DAY_IN_SECONDS) revert TokenLexscrowFactory_OneDayWaitingPeriodPending();
 
         feeSwitch = _pendingFeeSwitch;
         feeBasisPoints = _pendingFeeBasisPoints;
