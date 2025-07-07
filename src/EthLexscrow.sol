@@ -268,6 +268,8 @@ contract EthLexscrow is ReentrancyGuard, SafeTransferLib {
         if (!checkIfExpired()) {
             delete deposited;
             delete amountDeposited[buyer];
+            ++executions;
+
             // safeTransfer `totalAmount` to `seller` and `fee` to `receiver`, since `receive()` prevents depositing more than the totalWithFee, and safeguarded by any excess balance being withdrawable by buyer after expiry in `checkIfExpired()`
             safeTransferETH(seller, totalAmount);
             if (fee != 0) safeTransferETH(receiver, fee);

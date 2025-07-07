@@ -396,6 +396,7 @@ contract TokenLexscrow is ReentrancyGuard, SafeTransferLib {
         if (!checkIfExpired()) {
             delete deposited;
             delete amountDeposited[buyer];
+            ++executions;
 
             // safeTransfer `totalAmount` to `seller` and `fee` to `receiver`; note the deposit functions perform checks against depositing more than the `totalWithFee`,
             // and further safeguarded by any excess balance being withdrawable by buyer after expiry in `checkIfExpired()`
