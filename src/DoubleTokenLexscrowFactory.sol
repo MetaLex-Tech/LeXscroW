@@ -21,7 +21,7 @@ import {ICondition, LexscrowConditionManager} from "./libs/LexscrowConditionMana
  **/
 contract DoubleTokenLexscrowFactory {
     /// gas-saving and best practice to have fixed uint as an internal constant variable, used for fee calculations
-    uint256 internal constant BASIS_POINTS = 1000;
+    uint256 internal constant BASIS_POINTS = 10000;
     uint256 internal constant DAY_IN_SECONDS = 86400;
 
     /// @notice address which may update the fee parameters and receives any token fees if 'feeSwitch' == true. Only accepts token fees, so 'payable' is not necessary
@@ -64,8 +64,10 @@ contract DoubleTokenLexscrowFactory {
 
     /** @dev enable optimization with >= 200 runs; 'msg.sender' is the initial 'receiver';
      ** constructor is payable for gas optimization purposes but msg.value should == 0. */
-    constructor() payable {
-        receiver = msg.sender;
+    constructor(address _receiver, bool _feeSwitch, uint256 _feeBasisPoints) payable {
+        receiver = _receiver;
+        feeSwitch = _feeSwitch;
+        feeBasisPoints = _feeBasisPoints;
     }
 
     /** @notice for a user to deploy their own DoubleTokenLexscrow, with a communicated fee if 'feeSwitch' == true that adjusts the total amounts (so the fee is paid by the DoubleTokenLexscrow parties rather than its deployer). Note that electing custom conditions may introduce

@@ -11,13 +11,13 @@ contract DoubleTokenLexscrowFactoryTest is Test {
     address internal receiver;
 
     // match internal constants in DoubleTokenLexscrowFactory.sol
-    uint256 internal constant BASIS_POINTS = 1000;
+    uint256 internal constant BASIS_POINTS = 10000;
     uint256 internal constant DAY_IN_SECONDS = 86400;
 
     uint256 public feeBasisPoints;
 
     function setUp() public {
-        factoryTest = new DoubleTokenLexscrowFactory();
+        factoryTest = new DoubleTokenLexscrowFactory(address(this), true, 25);
         //this address deploys 'factoryTest'
         receiver = address(this);
     }
